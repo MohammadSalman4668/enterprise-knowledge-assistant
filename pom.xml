@@ -11,8 +11,8 @@
 	<groupId>com.salman</groupId>
 	<artifactId>Enterprise_Knowledge_Graph</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name/>
-	<description/>
+	<name>Enterprise Knowledge Assistant</name>
+	<description>Internal knowledge portal with permission-aware RAG and a controlled research agent</description>
 	<url/>
 	<licenses>
 		<license/>
@@ -28,6 +28,8 @@
 	</scm>
 	<properties>
 		<java.version>21</java.version>
+		<anthropic-java.version>2.71.0</anthropic-java.version>
+		<pdfbox.version>3.0.8</pdfbox.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -41,6 +43,30 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-webmvc</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-flyway</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.flywaydb</groupId>
+			<artifactId>flyway-database-postgresql</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.pdfbox</groupId>
+			<artifactId>pdfbox</artifactId>
+			<version>${pdfbox.version}</version>
+		</dependency>
+		<!-- Official Anthropic Java SDK: used only when ANTHROPIC_API_KEY is configured -->
+		<dependency>
+			<groupId>com.anthropic</groupId>
+			<artifactId>anthropic-java</artifactId>
+			<version>${anthropic-java.version}</version>
 		</dependency>
 
 		<dependency>
@@ -61,6 +87,11 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-webmvc-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security-test</artifactId>
 			<scope>test</scope>
 		</dependency>
 	</dependencies>
