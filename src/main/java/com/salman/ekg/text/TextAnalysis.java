@@ -66,10 +66,19 @@ public final class TextAnalysis {
         } else if (t.endsWith("s") && !t.endsWith("ss") && !t.endsWith("us") && !t.endsWith("is")) {
             t = t.substring(0, t.length() - 1);
         }
-        if (t.endsWith("ing") && t.length() - 3 >= 4) {
+        boolean suffixRemoved = false;
+        if (t.endsWith("ing") && t.length() - 3 >= 3) {
             t = t.substring(0, t.length() - 3);
-        } else if (t.endsWith("ed") && t.length() - 2 >= 4) {
+            suffixRemoved = true;
+        } else if (t.endsWith("ed") && t.length() - 2 >= 3) {
             t = t.substring(0, t.length() - 2);
+            suffixRemoved = true;
+        }
+        // "capped" -> "capp" -> "cap", "resetting" -> "resett" -> "reset"
+        int n = t.length();
+        if (suffixRemoved && n >= 3 && t.charAt(n - 1) == t.charAt(n - 2)
+                && "lsz".indexOf(t.charAt(n - 1)) < 0 && "aeiou".indexOf(t.charAt(n - 1)) < 0) {
+            t = t.substring(0, n - 1);
         }
         return t;
     }
