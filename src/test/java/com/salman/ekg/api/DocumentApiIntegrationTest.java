@@ -197,8 +197,10 @@ class DocumentApiIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.version").value(2))
                 .andExpect(jsonPath("$.status").value("ACTIVE"));
 
+        // Other documents may also match "hours"; what matters is that this document only appears as v2.
         mvc.perform(postJson("/api/knowledge/search", Map.of("query", "visitor parking hours")).with(EMPLOYEE))
-                .andExpect(jsonPath("$.total").value(1))
+                .andExpect(jsonPath("$.results[0].documentId").value(id))
+                .andExpect(jsonPath("$.results[?(@.documentId == " + id + ")].version", Matchers.everyItem(Matchers.is(2))))
                 .andExpect(jsonPath("$.results[0].version").value(2))
                 .andExpect(jsonPath("$.results[0].snippet", Matchers.containsString("2 hours")))
                 .andExpect(jsonPath("$.results[*].chunkId", Matchers.not(Matchers.hasItem(oldChunkId))));
