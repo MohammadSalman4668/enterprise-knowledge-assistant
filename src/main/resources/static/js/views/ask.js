@@ -143,19 +143,23 @@ function feedbackForm(res) {
         mount(status, errorBox({ code: 'VALIDATION_FAILED', message: 'Choose a rating from 1 to 5 stars.' }));
         return;
       }
+      let saved = null;
       await withBusy(submit, 'Sending…', async () => {
         try {
-          const saved = await api('/api/knowledge/feedback', {
+          saved = await api('/api/knowledge/feedback', {
             method: 'POST',
             body: { answerId: res.answerId, documentId: docSelect.value ? Number(docSelect.value) : null, rating, comment: comment.value },
           });
-          mount(status, h('div', { class: 'callout info' }, `✓ Thanks! Feedback #${saved.id} saved${saved.documentTitle ? ` for “${saved.documentTitle}”` : ''}.`));
-          form.querySelectorAll('input,select,textarea,button').forEach((el) => { el.disabled = true; });
-          toast('Feedback saved');
         } catch (err) {
           mount(status, errorBox(err));
         }
       });
+      // Disable only after withBusy has restored the button, otherwise it would be re-enabled.
+      if (saved) {
+        mount(status, h('div', { class: 'callout info' }, `✓ Thanks! Feedback #${saved.id} saved${saved.documentTitle ? ` for “${saved.documentTitle}”` : ''}.`));
+        form.querySelectorAll('input,select,textarea,button').forEach((el) => { el.disabled = true; });
+        toast('Feedback saved');
+      }
     },
   },
   h('details', { open: true },

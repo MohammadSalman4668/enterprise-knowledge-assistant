@@ -62,7 +62,8 @@ function tiles(s) {
     tile('Searches', s.searches),
     tile('Questions asked', s.questions),
     tile('Abstain rate', abstainRate),
-    tile('Feedback · avg', s.feedback_count ? `${s.feedback_count} · ${s.average_rating}` : '0'));
+    tile(`Avg rating (${s.feedback_count ?? 0} rating${s.feedback_count === 1 ? '' : 's'})`,
+      s.feedback_count ? `${Number(s.average_rating).toFixed(2)} / 5` : '-'));
 }
 
 function chartCard(title, valueName, rows, opts) {

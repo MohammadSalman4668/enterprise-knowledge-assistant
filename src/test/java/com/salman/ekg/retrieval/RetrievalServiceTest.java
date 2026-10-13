@@ -141,6 +141,19 @@ class RetrievalServiceTest {
     }
 
     @Test
+    @DisplayName("Re-rank ignores outer headings that merely repeat the document title (regression)")
+    void rerankIgnoresTitleHeading() {
+        RetrievedChunk requesting = new RetrievedChunk(3, 1, "Annual Leave Policy", "HR", AccessLevel.INTERNAL, 1, 2,
+                "Annual Leave Policy > Requesting Leave", null,
+                "Leave requests must be submitted at least 10 working days before the first day of leave.", 0.9);
+        RetrievedChunk entitlement = new RetrievedChunk(2, 1, "Annual Leave Policy", "HR", AccessLevel.INTERNAL, 1, 1,
+                "Annual Leave Policy > Entitlement", null,
+                "Full-time employees receive 25 days of paid annual leave per calendar year.", 0.5);
+        assertThat(RetrievalService.rerank("How many annual leave days do I get", List.of(requesting, entitlement)))
+                .extracting(RetrievedChunk::chunkId).containsExactly(2L, 3L);
+    }
+
+    @Test
     @DisplayName("The keyword tsquery is built only from sanitised word tokens")
     void tsQuerySanitised() {
         assertThat(KeywordRetriever.toTsQuery("reset VPN token!")).isEqualTo("reset | vpn | token");

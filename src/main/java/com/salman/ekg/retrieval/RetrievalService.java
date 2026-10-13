@@ -109,11 +109,20 @@ public class RetrievalService {
         }
         Map<Long, Double> coverage = new HashMap<>();
         hits.forEach(h -> coverage.put(h.chunkId(), TextAnalysis.coverage(terms,
-                TextAnalysis.stemSet((h.sectionRef() == null ? "" : h.sectionRef()) + " " + h.content()))));
+                TextAnalysis.stemSet(innermostHeading(h.sectionRef()) + " " + h.content()))));
         return hits.stream()
                 .sorted(Comparator.comparingDouble((RetrievedChunk h) -> coverage.get(h.chunkId())).reversed()
                         .thenComparing(Comparator.comparingDouble(RetrievedChunk::score).reversed()))
                 .toList();
+    }
+
+    /** "Annual Leave Policy > Entitlement" -> "Entitlement": outer headings usually repeat the title. */
+    private static String innermostHeading(String sectionRef) {
+        if (sectionRef == null) {
+            return "";
+        }
+        int i = sectionRef.lastIndexOf(" > ");
+        return i < 0 ? sectionRef : sectionRef.substring(i + 3);
     }
 
     private List<RetrievedChunk> enforce(List<RetrievedChunk> hits, Set<AccessLevel> allowed) {
