@@ -2,9 +2,12 @@ package com.salman.ekg.retrieval;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -23,6 +26,7 @@ import com.salman.ekg.exception.ApiException;
 import com.salman.ekg.repository.KnowledgeChunkRepository;
 import com.salman.ekg.security.CurrentUser;
 import com.salman.ekg.service.AccessPolicyService;
+import com.salman.ekg.text.TextAnalysis;
 
 /**
  * Runs the retriever chain with a per-retriever timeout and falls back to the next one
@@ -37,6 +41,8 @@ import com.salman.ekg.service.AccessPolicyService;
 public class RetrievalService {
 
     private static final Logger log = LoggerFactory.getLogger(RetrievalService.class);
+    private static final int CANDIDATE_FACTOR = 3;
+    private static final int MIN_CANDIDATES = 15;
 
     public record Result(List<RetrievedChunk> hits, String mode, boolean fallbackUsed, List<String> warnings) {}
 
@@ -62,7 +68,9 @@ public class RetrievalService {
             // Filtering on a level the caller cannot read yields nothing, not an error that would confirm it exists.
             return new Result(List.of(), "NONE", false, List.of());
         }
-        Retriever.Query query = new Retriever.Query(text, user.role(), category, accessLevel, limit);
+        // Over-fetch candidates so the coverage re-rank below can promote the best passage.
+        Retriever.Query query = new Retriever.Query(text, user.role(), category, accessLevel,
+                Math.max(limit * CANDIDATE_FACTOR, MIN_CANDIDATES));
         List<String> warnings = new ArrayList<>();
         for (int i = 0; i < retrievers.size(); i++) {
             Retriever retriever = retrievers.get(i);
@@ -70,7 +78,8 @@ public class RetrievalService {
                     CompletableFuture.supplyAsync(() -> retriever.retrieve(query), executor);
             try {
                 List<RetrievedChunk> hits = future.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
-                return new Result(enforce(hits, allowed, limit), retriever.name(), i > 0, List.copyOf(warnings));
+                List<RetrievedChunk> ranked = rerank(text, enforce(hits, allowed));
+                return new Result(ranked.stream().limit(limit).toList(), retriever.name(), i > 0, List.copyOf(warnings));
             } catch (TimeoutException e) {
                 future.cancel(true);
                 warnings.add(retriever.name() + " retriever timed out after " + timeout.toMillis() + " ms");
@@ -87,7 +96,27 @@ public class RetrievalService {
                 "Knowledge search is temporarily unavailable. Please try again shortly.");
     }
 
-    private List<RetrievedChunk> enforce(List<RetrievedChunk> hits, Set<AccessLevel> allowed, int limit) {
+    /**
+     * Orders candidates by how completely the passage's own section + content covers the
+     * question's key terms (the document title is shared by every chunk of a document, so
+     * it is excluded here), then by the retriever's score. This promotes the passage that
+     * actually answers the question over one that merely repeats a frequent term.
+     */
+    static List<RetrievedChunk> rerank(String text, List<RetrievedChunk> hits) {
+        List<String> terms = TextAnalysis.keyTerms(text);
+        if (terms.isEmpty() || hits.size() < 2) {
+            return hits;
+        }
+        Map<Long, Double> coverage = new HashMap<>();
+        hits.forEach(h -> coverage.put(h.chunkId(), TextAnalysis.coverage(terms,
+                TextAnalysis.stemSet((h.sectionRef() == null ? "" : h.sectionRef()) + " " + h.content()))));
+        return hits.stream()
+                .sorted(Comparator.comparingDouble((RetrievedChunk h) -> coverage.get(h.chunkId())).reversed()
+                        .thenComparing(Comparator.comparingDouble(RetrievedChunk::score).reversed()))
+                .toList();
+    }
+
+    private List<RetrievedChunk> enforce(List<RetrievedChunk> hits, Set<AccessLevel> allowed) {
         List<RetrievedChunk> permitted = hits.stream().filter(h -> allowed.contains(h.accessLevel())).toList();
         if (permitted.isEmpty()) {
             return List.of();
@@ -98,7 +127,6 @@ public class RetrievalService {
         Set<Long> seen = new HashSet<>();
         return permitted.stream()
                 .filter(h -> live.contains(h.chunkId()) && seen.add(h.chunkId()))
-                .limit(limit)
                 .toList();
     }
 }

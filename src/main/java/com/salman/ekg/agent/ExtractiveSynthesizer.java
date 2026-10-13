@@ -67,8 +67,8 @@ public class ExtractiveSynthesizer implements AnswerSynthesizer {
             }
             List<String> newTerms = TextAnalysis.matchedTerms(terms, TextAnalysis.stemSet(c.sentence())).stream()
                     .filter(t -> !coveredTerms.contains(t)).toList();
-            if (!picked.isEmpty() && newTerms.isEmpty()) {
-                continue; // a second sentence must add something
+            if (!picked.isEmpty() && newTerms.isEmpty() && c.coverage() < 1.0) {
+                continue; // a second sentence must add a term, or fully answer the goal on its own
             }
             coveredTerms.addAll(newTerms);
             used.add(c.sentence());

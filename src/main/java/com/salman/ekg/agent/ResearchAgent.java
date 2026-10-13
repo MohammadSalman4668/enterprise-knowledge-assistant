@@ -179,7 +179,10 @@ public class ResearchAgent {
         }
 
         // VALIDATE
-        ValidationResult validation = validator.validate(body, byRef);
+        // An empty body is legitimate when every supported part is a conflict (stated below by Java).
+        ValidationResult validation = body == null || body.isBlank()
+                ? new ValidationResult("", List.of(), List.of())
+                : validator.validate(body, byRef);
         List<String> issues = new ArrayList<>(validation.issues());
         boolean needsBody = supported.stream().anyMatch(a -> conflicts.stream()
                 .noneMatch(c -> c.subQuestionIndex() == a.subQuestion().index()));
