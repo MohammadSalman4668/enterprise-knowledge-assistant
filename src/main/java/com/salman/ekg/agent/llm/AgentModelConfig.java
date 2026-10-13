@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.web.client.RestClient;
 
 import com.anthropic.client.AnthropicClient;
 import com.anthropic.client.okhttp.AnthropicOkHttpClient;
@@ -14,10 +15,12 @@ import com.salman.ekg.agent.ExtractiveSynthesizer;
 import com.salman.ekg.config.KnowledgeProperties;
 import com.salman.ekg.domain.AgentMode;
 
+import tools.jackson.databind.ObjectMapper;
+
 /**
- * Chooses LIVE (Anthropic) or SIMULATED at startup. With {@code ekg.llm.provider=auto}
- * the app is live only when ANTHROPIC_API_KEY is set; otherwise it runs the clearly
- * labelled simulation. The key is read from the environment and never logged.
+ * Chooses the model provider at startup (see {@link KnowledgeProperties.Llm#resolve()}):
+ * the labelled simulation, Anthropic, or any OpenAI-compatible server such as a local,
+ * free Ollama. Keys are read from configuration and never logged.
  */
 @Configuration
 public class AgentModelConfig {
@@ -26,21 +29,34 @@ public class AgentModelConfig {
     public static final String SIMULATED_MODEL_NAME = "simulated-extractive-v1";
 
     @Bean
-    AgentModels agentModels(KnowledgeProperties props, AgentToolbox toolbox,
-                            DeterministicEvidencePlanner deterministicPlanner, ExtractiveSynthesizer extractive) {
+    AgentModels agentModels(KnowledgeProperties props, AgentToolbox toolbox, DeterministicEvidencePlanner deterministicPlanner,
+                            ExtractiveSynthesizer extractive, ObjectMapper mapper) {
         KnowledgeProperties.Llm llm = props.llm();
-        if (llm.liveRequested()) {
-            AnthropicClient client = AnthropicOkHttpClient.builder()
-                    .apiKey(llm.apiKey())
-                    .timeout(llm.timeout())
-                    .maxRetries(1)
-                    .build();
-            log.info("Agent mode LIVE using model {}", llm.model());
-            return new AgentModels(AgentMode.LIVE, llm.model(),
-                    new ClaudeEvidencePlanner(client, toolbox, llm.model(), llm.maxTokens()),
-                    new ClaudeSynthesizer(client, llm.model(), llm.maxTokens()));
-        }
-        log.warn("Agent mode SIMULATED: no model is called (set ANTHROPIC_API_KEY to enable the live model)");
-        return new AgentModels(AgentMode.SIMULATED, SIMULATED_MODEL_NAME, deterministicPlanner, extractive);
+        return switch (llm.resolve()) {
+            case ANTHROPIC -> {
+                AnthropicClient client = AnthropicOkHttpClient.builder()
+                        .apiKey(llm.apiKey())
+                        .timeout(llm.timeout())
+                        .maxRetries(1)
+                        .build();
+                log.info("Agent mode LIVE using Anthropic model {}", llm.model());
+                yield new AgentModels(AgentMode.LIVE, llm.model(),
+                        new ClaudeEvidencePlanner(client, toolbox, llm.model(), llm.maxTokens()),
+                        new ClaudeSynthesizer(client, llm.model(), llm.maxTokens()));
+            }
+            case OPENAI_COMPATIBLE -> {
+                OpenAiCompatibleClient client = new OpenAiCompatibleClient(
+                        OpenAiCompatibleClient.configure(RestClient.builder(), llm.baseUrl(), llm.apiKey(), llm.timeout()),
+                        llm.model(), llm.maxTokens());
+                log.info("Agent mode LIVE using OpenAI-compatible model {} at {}", llm.model(), llm.baseUrl());
+                yield new AgentModels(AgentMode.LIVE, llm.model(),
+                        new OpenAiCompatibleEvidencePlanner(client, toolbox, mapper),
+                        new OpenAiCompatibleSynthesizer(client));
+            }
+            case SIMULATED -> {
+                log.warn("Agent mode SIMULATED: no model is called (configure ekg.llm.* to enable a live model)");
+                yield new AgentModels(AgentMode.SIMULATED, SIMULATED_MODEL_NAME, deterministicPlanner, extractive);
+            }
+        };
     }
 }
