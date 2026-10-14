@@ -52,8 +52,7 @@ function renderLogin(error) {
   h('h1', {}, 'Knowledge Assistant'),
   h('p', { class: 'muted' }, 'Sign in as one of the synthetic demo users to see role-based access in action.'),
   h('div', { class: 'demo-users' }, buttons),
-  h('div', { class: 'field' }, h('label', { for: 'password' }, 'Demo password'), pw,
-    h('div', { class: 'small muted' }, 'Configured as ekg.demo.password in local.properties or EKG_DEMO_PASSWORD; if unset, a generated one is printed in the server log.')),
+  h('div', { class: 'field' }, h('label', { for: 'password' }, 'Demo password'), pw),
   errSlot, submit);
   mount(app, form);
   pw.focus();

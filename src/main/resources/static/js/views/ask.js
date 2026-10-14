@@ -40,8 +40,7 @@ export function renderAsk(app) {
       });
     },
   },
-  h('div', { class: 'field' }, h('label', { for: 'question' }, 'Your question'), question,
-    h('div', { class: 'small muted' }, 'Press Enter to ask · Shift+Enter for a new line')),
+  h('div', { class: 'field' }, h('label', { for: 'question' }, 'Your question'), question),
   h('div', { class: 'row' },
     h('div', { class: 'field', style: 'min-width:180px' }, h('label', { for: 'category' }, 'Limit to category (optional)'), category, categoryList('cat-list')),
     h('div', { class: 'spacer' }), submit),
