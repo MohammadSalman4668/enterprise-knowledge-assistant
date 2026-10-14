@@ -114,6 +114,27 @@ class OllamaAdapterTest {
     }
 
     @Test
+    @DisplayName("Repair continues the conversation with the rejected answer and the validator's reasons")
+    void repairSendsRejectedAnswerAndProblems() {
+        server.expect(requestTo(BASE + "/chat/completions"))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("rejected by the citation checker")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("UNCITED_SENTENCE_REMOVED: x")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("\"role\":\"assistant\"")))
+                .andRespond(withSuccess("{\"choices\":[{\"message\":{\"content\":\"Fixed [E1].\"}}]}", MediaType.APPLICATION_JSON));
+        String fixed = new OllamaSynthesizer(client).repair(new SynthesisInput("q", List.of(), List.of()),
+                "bad answer", List.of("UNCITED_SENTENCE_REMOVED: x"));
+        assertThat(fixed).isEqualTo("Fixed [E1].");
+        server.verify();
+    }
+
+    @Test
+    @DisplayName("Regression: the answer prompt contains no example fact a small model could copy")
+    void answerPromptHasNoCopyableExampleFacts() {
+        assertThat(AgentPrompts.ANSWER_SYSTEM).doesNotContain("25 days").doesNotContainPattern("\"[A-Z][^\"]*\\[E1]\\.\"");
+        assertThat(AgentPrompts.ANSWER_SYSTEM).contains("title");
+    }
+
+    @Test
     @DisplayName("Provider resolution: ollama (default) needs a base URL and model; simulated needs nothing; others rejected")
     void providerResolution() {
         Duration t = Duration.ofSeconds(1);

@@ -1,5 +1,7 @@
 package com.salman.ekg.agent;
 
+import java.util.List;
+
 import com.salman.ekg.agent.AgentTypes.SynthesisInput;
 
 /**
@@ -9,4 +11,13 @@ import com.salman.ekg.agent.AgentTypes.SynthesisInput;
 public interface AnswerSynthesizer {
 
     String compose(SynthesisInput input);
+
+    /**
+     * Second chance after the validator rejected {@code rejectedAnswer}: the model is told
+     * exactly what was wrong. The default simply composes again (used by the extractive
+     * synthesizer, whose output never fails validation).
+     */
+    default String repair(SynthesisInput input, String rejectedAnswer, List<String> problems) {
+        return compose(input);
+    }
 }

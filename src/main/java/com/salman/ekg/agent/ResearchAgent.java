@@ -160,6 +160,7 @@ public class ResearchAgent {
         Map<String, EvidenceItem> byRef = new LinkedHashMap<>();
         ctx.evidence().forEach(e -> byRef.put(e.ref(), e));
         String body;
+        boolean synthesisFailed = false;
         long synthStart = System.nanoTime();
         try {
             body = withTimeout(() -> models.synthesizer().compose(input), synthesisTimeout());
@@ -170,6 +171,7 @@ public class ResearchAgent {
                 throw e;
             }
             degraded = true;
+            synthesisFailed = true;
             log.warn("Synthesis failed, falling back to extractive answer: {}", e.toString());
             ctx.warn("The AI model did not respond in time (" + e.getClass().getSimpleName()
                     + "); an extractive answer quoting the evidence is shown instead.");
@@ -186,6 +188,15 @@ public class ResearchAgent {
         List<String> issues = new ArrayList<>(validation.issues());
         boolean needsBody = supported.stream().anyMatch(a -> conflicts.stream()
                 .noneMatch(c -> c.subQuestionIndex() == a.subQuestion().index()));
+        boolean modelWroteBody = models.synthesizer() != fallbackSynthesizer && !synthesisFailed;
+        if (validation.text().isBlank() && needsBody && modelWroteBody) {
+            // REPAIR: one second chance for the model, told exactly what the validator rejected.
+            ValidationResult repaired = tryRepair(ctx, input, body, validation.issues(), byRef);
+            if (repaired != null && !repaired.text().isBlank()) {
+                issues.addAll(repaired.issues());
+                validation = new ValidationResult(repaired.text(), repaired.usedRefs(), issues);
+            }
+        }
         if (validation.text().isBlank() && needsBody && models.synthesizer() != fallbackSynthesizer) {
             degraded = true;
             ctx.warn("The model's answer failed citation validation; an extractive answer from the evidence is shown instead.");
@@ -259,6 +270,24 @@ public class ResearchAgent {
                 issues, ctx.warnings(), ctx.trace(), ctx.toolCallsUsed(), ms(start), clock.instant());
         Long id = runs.save(user, response);
         return response.withAnswerId(id);
+    }
+
+    /** Returns the validated repair, or null if the model failed or timed out (caller then falls back). */
+    private ValidationResult tryRepair(AgentContext ctx, SynthesisInput input, String rejected, List<String> problems,
+                                       Map<String, EvidenceItem> byRef) {
+        long start = System.nanoTime();
+        try {
+            String fixed = withTimeout(() -> models.synthesizer().repair(input, rejected, problems), synthesisTimeout());
+            ValidationResult result = validator.validate(fixed, byRef);
+            ctx.addTrace("REPAIR", null, Map.of("problems", problems.size()),
+                    result.text().isBlank() ? "FAILED" : "OK", abbreviate(fixed), ms(start));
+            return result;
+        } catch (RuntimeException e) {
+            log.warn("Answer repair failed: {}", e.toString());
+            ctx.addTrace("REPAIR", null, Map.of("problems", problems.size()), "FAILED",
+                    e.getClass().getSimpleName(), ms(start));
+            return null;
+        }
     }
 
     private <T> T withTimeout(Supplier<T> call, Duration timeout) {

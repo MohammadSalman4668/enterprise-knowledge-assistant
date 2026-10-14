@@ -196,6 +196,35 @@ class ResearchAgentTest {
     }
 
     @Test
+    @DisplayName("A rejected model answer gets one repair attempt; a valid repair is used and the run is not degraded")
+    void rejectedAnswerIsRepairedByModel() {
+        AnswerSynthesizer model = new AnswerSynthesizer() {
+            @Override
+            public String compose(AgentTypes.SynthesisInput input) {
+                return "Employees get 40 days of annual leave [E1].";
+            }
+
+            @Override
+            public String repair(AgentTypes.SynthesisInput input, String rejected, List<String> problems) {
+                assertThat(rejected).contains("40 days");
+                assertThat(problems).anySatisfy(p -> assertThat(p).startsWith("UNSUPPORTED_NUMBER_REMOVED"));
+                return "Full-time employees receive 25 days of paid annual leave per calendar year [E1].";
+            }
+        };
+        AskResponse res = agent(new AgentModels(AgentMode.LIVE, "m", deterministic, model))
+                .ask(new AskRequest("How many days of annual leave do I get?", null), EMPLOYEE);
+
+        assertThat(res.outcome()).isEqualTo(AnswerOutcome.ANSWERED);
+        assertThat(res.degraded()).isFalse();
+        assertThat(res.answer()).contains("25 days").doesNotContain("40 days");
+        assertThat(res.trace()).anySatisfy(t -> {
+            assertThat(t.phase()).isEqualTo("REPAIR");
+            assertThat(t.status()).isEqualTo("OK");
+        });
+        assertThat(res.validationIssues()).anySatisfy(i -> assertThat(i).startsWith("UNSUPPORTED_NUMBER_REMOVED"));
+    }
+
+    @Test
     @DisplayName("Tool budget is a hard limit")
     void toolBudgetEnforced() {
         AgentContext ctx = new AgentContext(EMPLOYEE, null, 2);
