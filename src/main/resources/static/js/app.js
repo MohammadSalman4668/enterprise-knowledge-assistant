@@ -67,7 +67,7 @@ function renderChrome() {
   mount(document.getElementById('user-box'),
     h('span', {}, me.displayName),
     h('span', { class: 'badge info' }, me.role.toLowerCase()),
-    h('button', { class: 'small', onclick: () => { session.clear(); state.me = null; renderLogin(); } }, 'Sign out'));
+    h('button', { class: 'small', onclick: () => signOut() }, 'Sign out'));
   const banner = document.getElementById('mode-banner');
   banner.hidden = false;
   banner.className = `mode-banner ${status.simulated ? '' : 'live'}`;
@@ -105,7 +105,7 @@ function route() {
 
 async function boot() {
   if (!session.get()) {
-    renderLogin();
+    renderLogin(takeNotice());
     return;
   }
   try {
@@ -120,10 +120,31 @@ async function boot() {
   }
 }
 
-window.addEventListener('hashchange', route);
-window.addEventListener('ekg:unauthorized', () => {
+const NOTICE_KEY = 'ekg.signin-notice';
+
+/**
+ * Ends the session with a full page reload, so no screen keeps the previous user's data
+ * (last question/answer, filters…). The next user always starts on the Ask tab.
+ */
+function signOut(notice) {
   session.clear();
-  state.me = null;
-  renderLogin(new ApiError(401, { code: 'UNAUTHENTICATED', message: 'Your session has ended. Please sign in again.' }));
-});
+  try {
+    if (notice) sessionStorage.setItem(NOTICE_KEY, notice);
+  } catch { /* storage unavailable: the notice is simply not shown */ }
+  history.replaceState(null, '', `${location.pathname}#/ask`);
+  location.reload();
+}
+
+function takeNotice() {
+  try {
+    const notice = sessionStorage.getItem(NOTICE_KEY);
+    sessionStorage.removeItem(NOTICE_KEY);
+    return notice ? new ApiError(401, { code: 'UNAUTHENTICATED', message: notice }) : null;
+  } catch {
+    return null;
+  }
+}
+
+window.addEventListener('hashchange', route);
+window.addEventListener('ekg:unauthorized', () => signOut('Your session has ended. Please sign in again.'));
 boot();

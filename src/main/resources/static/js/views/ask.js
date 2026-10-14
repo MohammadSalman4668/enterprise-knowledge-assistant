@@ -7,13 +7,11 @@ import {
 const EXAMPLES = [
   'How many days of annual leave do I get?',
   'How many annual leave days do I get and how do I reset my VPN token?',
-  'What is the hotel cap per night?',
-  'What are the salary bands for L5 engineers?',
-  'How many days can I work remotely?',
-  'What is the policy on bringing pets to the office?',
 ];
 
-let lastResult = null; // keep the last answer when navigating to a source and back
+// Keeps the signed-in user's last answer when they open a cited source and come back.
+// Signing out reloads the page, so it never carries over to another user.
+let lastResult = null;
 
 export function renderAsk(app) {
   const question = h('textarea', { id: 'question', maxlength: 1000, required: true, placeholder: 'Ask a question about policies, runbooks or FAQs…' });
@@ -42,7 +40,8 @@ export function renderAsk(app) {
       });
     },
   },
-  h('div', { class: 'field' }, h('label', { for: 'question' }, 'Your question'), question),
+  h('div', { class: 'field' }, h('label', { for: 'question' }, 'Your question'), question,
+    h('div', { class: 'small muted' }, 'Press Enter to ask · Shift+Enter for a new line')),
   h('div', { class: 'row' },
     h('div', { class: 'field', style: 'min-width:180px' }, h('label', { for: 'category' }, 'Limit to category (optional)'), category, categoryList('cat-list')),
     h('div', { class: 'spacer' }), submit),
@@ -50,6 +49,14 @@ export function renderAsk(app) {
   h('div', { class: 'chips' }, EXAMPLES.map((q) => h('button', {
     type: 'button', class: 'chip', onclick: () => { question.value = q; question.focus(); },
   }, q))));
+
+  // Enter asks (same as clicking Ask); Shift+Enter inserts a new line.
+  question.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+      e.preventDefault();
+      if (!submit.disabled) form.requestSubmit();
+    }
+  });
 
   mount(app,
     h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, 'Ask the knowledge base'),

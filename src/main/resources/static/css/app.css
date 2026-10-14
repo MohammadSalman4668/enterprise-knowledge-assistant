@@ -78,7 +78,8 @@ p { margin: .25rem 0 .75rem; }
   display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
   padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--border);
 }
-.brand { display: flex; align-items: center; gap: 8px; font-weight: 650; color: var(--accent); }
+.brand { display: flex; align-items: center; gap: 8px; font-weight: 650; color: var(--accent); text-decoration: none; border-radius: 6px; }
+.brand:hover span { color: var(--accent); }
 .brand span { color: var(--text); }
 .tabs { display: flex; gap: 4px; flex: 1; overflow-x: auto; }
 .tabs a {
