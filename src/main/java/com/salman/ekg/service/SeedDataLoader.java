@@ -15,6 +15,7 @@ import org.springframework.stereotype.Component;
 import com.salman.ekg.config.KnowledgeProperties;
 import com.salman.ekg.domain.AccessLevel;
 import com.salman.ekg.domain.AppUser;
+import com.salman.ekg.domain.DocumentStatus;
 import com.salman.ekg.domain.KnowledgeDocument;
 import com.salman.ekg.domain.Role;
 import com.salman.ekg.repository.AppUserRepository;
@@ -80,7 +81,9 @@ public class SeedDataLoader implements ApplicationRunner {
             KnowledgeDocument doc = documentService.upload(new DocumentService.UploadCommand(entry.title(),
                     entry.category(), entry.accessLevel(), entry.file(), bytes),
                     new CurrentUser(entry.owner(), ownerRole));
-            documentService.approve(doc.getId(), admin);
+            if (doc.getStatus() == DocumentStatus.PENDING_APPROVAL) {
+                documentService.approve(doc.getId(), admin); // admin-owned seed documents are already live
+            }
         }
         return entries.size();
     }

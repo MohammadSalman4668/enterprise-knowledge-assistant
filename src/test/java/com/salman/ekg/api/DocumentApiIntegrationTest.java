@@ -35,9 +35,10 @@ class DocumentApiIntegrationTest extends AbstractIntegrationTest {
             Visitors may park in bays V1 to V12 for up to 4 hours. Register the vehicle plate at reception.
             """;
 
+    /** HR uploads (pending) and Admin approves: the full approval-gate path. */
     private long uploadAndApprove(String name, String content, String category, String level) throws Exception {
-        MvcResult created = mvc.perform(upload(file(name, content), "Parking Policy", category, level).with(ADMIN))
-                .andExpect(status().isCreated()).andReturn();
+        MvcResult created = mvc.perform(upload(file(name, content), "Parking Policy", category, level).with(HR))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.status").value("PENDING_APPROVAL")).andReturn();
         long id = ((Number) json(created, "$.id")).longValue();
         mvc.perform(post("/api/knowledge/documents/{id}/approve", id).with(ADMIN)).andExpect(status().isOk());
         return id;
@@ -76,6 +77,20 @@ class DocumentApiIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.results[0].version").value(1))
                 .andExpect(jsonPath("$.results[0].sectionRef").value("Parking Policy > Visitor Parking"))
                 .andExpect(jsonPath("$.retrievalMode").value("KEYWORD"));
+    }
+
+    @Test
+    @DisplayName("Admin uploads skip the approval queue: active and searchable immediately; approving again is rejected")
+    void adminUploadIsLiveImmediately() throws Exception {
+        MvcResult created = mvc.perform(upload(file("parking.md", NEW_DOC), "Parking Policy", "Facilities", "INTERNAL").with(ADMIN))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("ACTIVE"))
+                .andReturn();
+        long id = ((Number) json(created, "$.id")).longValue();
+        mvc.perform(postJson("/api/knowledge/search", Map.of("query", "visitor parking bays")).with(EMPLOYEE))
+                .andExpect(jsonPath("$.results[0].documentId").value(id));
+        mvc.perform(post("/api/knowledge/documents/{id}/approve", id).with(ADMIN))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("INVALID_STATE_TRANSITION"));
     }
 
     @Test

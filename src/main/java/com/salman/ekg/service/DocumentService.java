@@ -104,6 +104,10 @@ public class DocumentService {
         versions.save(new DocumentVersion(doc, 1, hash, parsed.fullText(), doc.getFileName(), parsed.contentType(),
                 RevisionStatus.CURRENT, user.username(), now));
         writeChunks(doc, 1, parsed, now);
+        if (user.isAdmin()) {
+            // The approver is the uploader: a separate approval step would add nothing.
+            doc.changeStatus(DocumentStatus.ACTIVE, now);
+        }
         return doc;
     }
 

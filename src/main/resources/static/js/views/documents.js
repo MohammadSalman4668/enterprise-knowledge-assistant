@@ -13,7 +13,7 @@ export function renderDocuments(app) {
   const tableSlot = h('div', {});
   mount(app,
     h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, 'Documents'),
-      h('p', { class: 'muted' }, 'Uploads are indexed immediately but only become searchable after an admin approves them.'))),
+      h('p', { class: 'muted' }, 'HR uploads become searchable after an admin approves them; admin uploads are live immediately.'))),
     state.me.canContribute ? uploadCard(() => loadTable(tableSlot)) : null,
     h('div', { class: 'card' }, filterBar(() => loadTable(tableSlot)), tableSlot));
   loadTable(tableSlot);
@@ -44,7 +44,8 @@ function uploadCard(onDone) {
       await withBusy(submit, 'Uploading…', async () => {
         try {
           const doc = await api('/api/knowledge/documents', { method: 'POST', form: data });
-          mount(status, h('div', { class: 'callout info' }, `✓ “${doc.title}” uploaded as version ${doc.version} - status `, statusBadge(doc.status), '. An admin must approve it before it is searchable.'));
+          mount(status, h('div', { class: 'callout info' }, `✓ “${doc.title}” uploaded as version ${doc.version} - status `, statusBadge(doc.status),
+            doc.status === 'ACTIVE' ? '. It is searchable now.' : '. An admin must approve it before it is searchable.'));
           form.reset();
           onDone();
         } catch (err) {

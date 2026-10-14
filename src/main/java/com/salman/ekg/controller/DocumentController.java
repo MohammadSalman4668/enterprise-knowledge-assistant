@@ -48,7 +48,10 @@ public class DocumentController {
         this.documents = documents;
     }
 
-    /** Upload a .txt/.md/.pdf file; it is indexed immediately but only searchable after approval. */
+    /**
+     * Upload a .txt/.md/.pdf file; it is indexed immediately. HR uploads are searchable only after an
+     * admin approves them; admin uploads are live at once (the uploader is the approver).
+     */
     @PostMapping(value = "/documents", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<DocumentSummary> upload(@RequestPart("file") MultipartFile file,
                                                   @Valid @ModelAttribute UploadMetadata metadata,
