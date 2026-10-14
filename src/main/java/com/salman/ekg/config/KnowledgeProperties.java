@@ -6,8 +6,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
  * All tunable application settings under the {@code ekg.*} prefix.
- * Secrets (DB password, API key, demo password) are only ever read from the
- * environment or the git-ignored {@code local.properties}.
+ * Secrets (DB password, demo password) are only ever read from the environment or the
+ * git-ignored {@code local.properties}.
  */
 @ConfigurationProperties(prefix = "ekg")
 public record KnowledgeProperties(
@@ -15,13 +15,25 @@ public record KnowledgeProperties(
         Retrieval retrieval,
         Agent agent,
         Llm llm,
+        Embedding embedding,
         Seed seed,
         Demo demo) {
 
     public record Ingestion(long maxBytes, int chunkSize) {}
 
-    /** Per-retriever timeout; the keyword retriever is the last fallback in the chain. */
+    /** Time budget for each retriever (keyword and semantic run in parallel). */
     public record Retrieval(Duration timeout, int defaultLimit) {}
+
+    /**
+     * Semantic search with a local Ollama embedding model.
+     *
+     * @param minSimilarity cosine similarity at which a passage counts as evidence by meaning
+     *                      (calibrated on the seed corpus with nomic-embed-text)
+     * @param queryPrefix / documentPrefix task prefixes the model expects (nomic: "search_query:", "search_document:")
+     * @param asyncIndexing embed new chunks in the background after upload/re-index (tests: false)
+     */
+    public record Embedding(boolean enabled, String model, String baseUrl, Duration timeout, double minSimilarity,
+                            String queryPrefix, String documentPrefix, int batchSize, boolean asyncIndexing) {}
 
     /**
      * Agent guard-rails: tool-call budget, evidence thresholds and the number of

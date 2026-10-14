@@ -64,7 +64,8 @@ public class SearchService {
                 + " " + h.content());
         return new SearchHit(h.chunkId(), h.documentId(), h.title(), h.category(), h.accessLevel(), h.version(),
                 h.chunkIndex(), h.sectionRef(), h.pageNumber(), h.locationLabel(), snippet(h.content(), terms),
-                Math.round(h.score() * 1000.0) / 1000.0, TextAnalysis.matchedTerms(terms, stems));
+                Math.round(h.score() * 1000.0) / 1000.0, TextAnalysis.matchedTerms(terms, stems), h.matchedBy(),
+                h.hasSimilarity() ? Math.round(h.similarity() * 1000.0) / 1000.0 : null);
     }
 
     /** The sentence that best covers the query terms, so the result list shows why it matched. */

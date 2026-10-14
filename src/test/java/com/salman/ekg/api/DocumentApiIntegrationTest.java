@@ -76,7 +76,7 @@ class DocumentApiIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.results[0].documentId").value(id))
                 .andExpect(jsonPath("$.results[0].version").value(1))
                 .andExpect(jsonPath("$.results[0].sectionRef").value("Parking Policy > Visitor Parking"))
-                .andExpect(jsonPath("$.retrievalMode").value("KEYWORD"));
+                .andExpect(jsonPath("$.retrievalMode").value("HYBRID"));
     }
 
     @Test

@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -29,13 +30,19 @@ import com.salman.ekg.service.AccessPolicyService;
 import com.salman.ekg.text.TextAnalysis;
 
 /**
- * Runs the retriever chain with a per-retriever timeout and falls back to the next one
- * on timeout or error. If every retriever fails the caller gets a clear 503
- * (RETRIEVAL_UNAVAILABLE) instead of an empty result that would look like "no evidence".
+ * Hybrid retrieval: runs every configured retriever (keyword full-text and, when enabled,
+ * semantic embeddings) <em>in parallel</em> under one time budget, then fuses their rankings.
  *
- * <p>Defence in depth: whatever a retriever returns is re-checked against the access
- * policy <em>and</em> against the database (current version, not superseded, searchable
- * status) before anything leaves this class.</p>
+ * <ul>
+ *   <li><b>Fusion:</b> Reciprocal Rank Fusion over three signals: keyword rank, meaning
+ *       (semantic) rank, and how fully the passage's own text covers the question's key terms.
+ *       A passage that is strong in any signal rises; one strong in several rises most.</li>
+ *   <li><b>Graceful degradation:</b> if one retriever times out or fails, the others' results
+ *       are used and a warning is returned (e.g. keyword-only while Ollama is down). If every
+ *       retriever fails the caller gets a clear 503 instead of a misleading empty result.</li>
+ *   <li><b>Defence in depth:</b> whatever a retriever returns is re-checked against the access
+ *       policy <em>and</em> the database (current version, not superseded, searchable status).</li>
+ * </ul>
  */
 @Service
 public class RetrievalService {
@@ -43,6 +50,9 @@ public class RetrievalService {
     private static final Logger log = LoggerFactory.getLogger(RetrievalService.class);
     private static final int CANDIDATE_FACTOR = 3;
     private static final int MIN_CANDIDATES = 15;
+    /** Standard RRF damping constant: rank 1 scores 1/61, rank 10 scores 1/70. */
+    static final int RRF_K = 60;
+    public static final String HYBRID = "HYBRID";
 
     public record Result(List<RetrievedChunk> hits, String mode, boolean fallbackUsed, List<String> warnings) {}
 
@@ -68,51 +78,97 @@ public class RetrievalService {
             // Filtering on a level the caller cannot read yields nothing, not an error that would confirm it exists.
             return new Result(List.of(), "NONE", false, List.of());
         }
-        // Over-fetch candidates so the coverage re-rank below can promote the best passage.
+        // Over-fetch candidates so fusion can promote the best passage from any signal.
         Retriever.Query query = new Retriever.Query(text, user.role(), category, accessLevel,
                 Math.max(limit * CANDIDATE_FACTOR, MIN_CANDIDATES));
+
+        Map<Retriever, CompletableFuture<List<RetrievedChunk>>> running = new LinkedHashMap<>();
+        retrievers.forEach(r -> running.put(r, CompletableFuture.supplyAsync(() -> r.retrieve(query), executor)));
+        long deadline = System.nanoTime() + timeout.toNanos();
+
+        Map<String, List<RetrievedChunk>> succeeded = new LinkedHashMap<>();
         List<String> warnings = new ArrayList<>();
-        for (int i = 0; i < retrievers.size(); i++) {
-            Retriever retriever = retrievers.get(i);
-            CompletableFuture<List<RetrievedChunk>> future =
-                    CompletableFuture.supplyAsync(() -> retriever.retrieve(query), executor);
+        for (Map.Entry<Retriever, CompletableFuture<List<RetrievedChunk>>> entry : running.entrySet()) {
+            String name = entry.getKey().name();
+            CompletableFuture<List<RetrievedChunk>> future = entry.getValue();
             try {
-                List<RetrievedChunk> hits = future.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
-                List<RetrievedChunk> ranked = rerank(text, enforce(hits, allowed));
-                return new Result(ranked.stream().limit(limit).toList(), retriever.name(), i > 0, List.copyOf(warnings));
+                long remaining = Math.max(0, deadline - System.nanoTime());
+                succeeded.put(name, future.get(remaining, TimeUnit.NANOSECONDS));
             } catch (TimeoutException e) {
                 future.cancel(true);
-                warnings.add(retriever.name() + " retriever timed out after " + timeout.toMillis() + " ms");
-                log.warn("Retriever {} timed out", retriever.name());
+                warnings.add(describe(name) + " timed out after " + timeout.toMillis() + " ms; results come from the other search only");
+                log.warn("Retriever {} timed out", name);
             } catch (ExecutionException e) {
-                warnings.add(retriever.name() + " retriever failed (" + e.getCause().getClass().getSimpleName() + ")");
-                log.warn("Retriever {} failed", retriever.name(), e.getCause());
+                warnings.add(describe(name) + " is unavailable (" + e.getCause().getClass().getSimpleName()
+                        + "); results come from the other search only");
+                log.warn("Retriever {} failed: {}", name, e.getCause().toString());
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 break;
             }
         }
-        throw ApiException.unavailable("RETRIEVAL_UNAVAILABLE",
-                "Knowledge search is temporarily unavailable. Please try again shortly.");
+        if (succeeded.isEmpty()) {
+            throw ApiException.unavailable("RETRIEVAL_UNAVAILABLE",
+                    "Knowledge search is temporarily unavailable. Please try again shortly.");
+        }
+        List<RetrievedChunk> fused = fuse(text, succeeded);
+        List<RetrievedChunk> permitted = enforce(fused, allowed);
+        String mode = succeeded.size() > 1 ? HYBRID : succeeded.keySet().iterator().next();
+        return new Result(permitted.stream().limit(limit).toList(), mode, !warnings.isEmpty(), List.copyOf(warnings));
+    }
+
+    private static String describe(String retrieverName) {
+        return switch (retrieverName) {
+            case RetrievedChunk.SEMANTIC -> "Semantic (meaning) search";
+            case RetrievedChunk.KEYWORD -> "Keyword search";
+            default -> retrieverName + " retriever";
+        };
     }
 
     /**
-     * Orders candidates by how completely the passage's own section + content covers the
-     * question's key terms (the document title is shared by every chunk of a document, so
-     * it is excluded here), then by the retriever's score. This promotes the passage that
-     * actually answers the question over one that merely repeats a frequent term.
+     * Reciprocal Rank Fusion of each retriever's ranking plus a lexical-coverage ranking
+     * (how completely the passage's own section + content covers the question's key terms;
+     * the document title is excluded because every chunk of a document shares it).
+     * Ties are broken by coverage, then keyword score, then id, so the order is deterministic.
      */
-    static List<RetrievedChunk> rerank(String text, List<RetrievedChunk> hits) {
+    static List<RetrievedChunk> fuse(String text, Map<String, List<RetrievedChunk>> rankings) {
+        record Acc(RetrievedChunk chunk, double[] rrf, Set<String> sources, double[] keywordScore, double[] similarity) {}
+        Map<Long, Acc> acc = new LinkedHashMap<>();
+        rankings.forEach((source, list) -> {
+            for (int i = 0; i < list.size(); i++) {
+                RetrievedChunk h = list.get(i);
+                Acc a = acc.computeIfAbsent(h.chunkId(), id -> new Acc(h, new double[1], new LinkedHashSet<>(),
+                        new double[] {-1}, new double[] {-1}));
+                a.rrf()[0] += 1.0 / (RRF_K + i + 1);
+                a.sources().add(source);
+                if (RetrievedChunk.SEMANTIC.equals(source)) {
+                    a.similarity()[0] = h.similarity();
+                } else {
+                    a.keywordScore()[0] = Math.max(a.keywordScore()[0], h.score());
+                }
+            }
+        });
         List<String> terms = TextAnalysis.keyTerms(text);
-        if (terms.isEmpty() || hits.size() < 2) {
-            return hits;
-        }
         Map<Long, Double> coverage = new HashMap<>();
-        hits.forEach(h -> coverage.put(h.chunkId(), TextAnalysis.coverage(terms,
-                TextAnalysis.stemSet(innermostHeading(h.sectionRef()) + " " + h.content()))));
-        return hits.stream()
-                .sorted(Comparator.comparingDouble((RetrievedChunk h) -> coverage.get(h.chunkId())).reversed()
-                        .thenComparing(Comparator.comparingDouble(RetrievedChunk::score).reversed()))
+        acc.forEach((id, a) -> coverage.put(id, terms.isEmpty() ? 0.0 : TextAnalysis.coverage(terms,
+                TextAnalysis.stemSet(innermostHeading(a.chunk().sectionRef()) + " " + a.chunk().content()))));
+        List<Long> byCoverage = coverage.entrySet().stream()
+                .filter(e -> e.getValue() > 0)
+                .sorted(Map.Entry.<Long, Double>comparingByValue().reversed())
+                .map(Map.Entry::getKey)
+                .toList();
+        for (int i = 0; i < byCoverage.size(); i++) {
+            acc.get(byCoverage.get(i)).rrf()[0] += 1.0 / (RRF_K + i + 1);
+        }
+        return acc.values().stream()
+                .sorted(Comparator.comparingDouble((Acc a) -> a.rrf()[0]).reversed()
+                        .thenComparing(Comparator.comparingDouble((Acc a) -> coverage.get(a.chunk().chunkId())).reversed())
+                        .thenComparing(Comparator.comparingDouble((Acc a) -> a.keywordScore()[0]).reversed())
+                        .thenComparingLong(a -> a.chunk().chunkId()))
+                .map(a -> a.chunk().withMatch(
+                        a.keywordScore()[0] >= 0 ? a.keywordScore()[0] : a.similarity()[0],
+                        a.similarity()[0],
+                        String.join("+", a.sources().stream().sorted().toList())))
                 .toList();
     }
 

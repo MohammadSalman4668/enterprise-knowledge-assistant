@@ -7,11 +7,13 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import com.salman.ekg.agent.AgentTypes.Assessment;
 import com.salman.ekg.agent.AgentTypes.EvidenceItem;
 import com.salman.ekg.agent.AgentTypes.SynthesisInput;
+import com.salman.ekg.embedding.SemanticScorer;
 import com.salman.ekg.text.TextAnalysis;
 
 /**
@@ -24,6 +26,19 @@ import com.salman.ekg.text.TextAnalysis;
 public class ExtractiveSynthesizer implements AnswerSynthesizer {
 
     private static final int MAX_SENTENCES_PER_PART = 2;
+    /** A sentence picked by meaning alone must be at least this similar to the question part. */
+    private static final double MIN_SENTENCE_SIMILARITY = 0.5;
+
+    private final SemanticScorer semantic;
+
+    public ExtractiveSynthesizer() {
+        this(SemanticScorer.none());
+    }
+
+    @Autowired
+    public ExtractiveSynthesizer(SemanticScorer semantic) {
+        this.semantic = semantic;
+    }
 
     @Override
     public String compose(SynthesisInput input) {
@@ -57,6 +72,9 @@ public class ExtractiveSynthesizer implements AnswerSynthesizer {
             }
             rank++;
         }
+        if (candidates.isEmpty()) {
+            return bestSentenceByMeaning(part, used);
+        }
         candidates.sort(Comparator.comparingDouble(Candidate::coverage).reversed()
                 .thenComparingInt(Candidate::rank));
         List<String> picked = new ArrayList<>();
@@ -75,6 +93,35 @@ public class ExtractiveSynthesizer implements AnswerSynthesizer {
             picked.add(withCitation(c.sentence(), c.item().ref()));
         }
         return picked;
+    }
+
+    /**
+     * No sentence shares a word with the question (e.g. "job from home" vs "work remotely"):
+     * quote the evidence sentence closest in meaning, if it is close enough.
+     */
+    private List<String> bestSentenceByMeaning(Assessment part, Set<String> used) {
+        List<String> sentences = new ArrayList<>();
+        List<EvidenceItem> owners = new ArrayList<>();
+        for (EvidenceItem e : part.support()) {
+            for (String s : TextAnalysis.sentences(e.text())) {
+                if (!s.contains(InjectionGuard.REMOVED_MARKER) && s.length() >= 12 && !used.contains(s)) {
+                    sentences.add(s);
+                    owners.add(e);
+                }
+            }
+        }
+        List<Double> sims = semantic.similarityToTexts(part.subQuestion().text(), sentences);
+        int best = -1;
+        for (int i = 0; i < sims.size(); i++) {
+            if (sims.get(i) >= MIN_SENTENCE_SIMILARITY && (best < 0 || sims.get(i) > sims.get(best))) {
+                best = i;
+            }
+        }
+        if (best < 0) {
+            return List.of();
+        }
+        used.add(sentences.get(best));
+        return List.of(withCitation(sentences.get(best), owners.get(best).ref()));
     }
 
     private static String withCitation(String sentence, String ref) {

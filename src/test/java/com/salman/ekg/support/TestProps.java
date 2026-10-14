@@ -20,6 +20,8 @@ public final class TestProps {
                 new KnowledgeProperties.Retrieval(retrieval, 10),
                 new KnowledgeProperties.Agent(10, 0.6, 2, 3),
                 new KnowledgeProperties.Llm("simulated", "test-model", llm, 512, ""),
+                new KnowledgeProperties.Embedding(false, "fake", "", Duration.ofSeconds(5), 0.35,
+                        "search_query:", "search_document:", 16, false),
                 new KnowledgeProperties.Seed(false),
                 new KnowledgeProperties.Demo("unused"));
     }

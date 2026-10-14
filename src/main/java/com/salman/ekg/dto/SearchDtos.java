@@ -24,7 +24,7 @@ public final class SearchDtos {
     public record SearchHit(
             long chunkId, long documentId, String title, String category, AccessLevel accessLevel, int version,
             int chunkIndex, String sectionRef, Integer pageNumber, String location, String snippet, double score,
-            List<String> matchedTerms) {
+            List<String> matchedTerms, String matchedBy, Double similarity) {
     }
 
     public record SearchResponse(

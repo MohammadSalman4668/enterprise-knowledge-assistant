@@ -197,6 +197,6 @@ class AskApiIntegrationTest extends AbstractIntegrationTest {
         mvc.perform(get("/api/knowledge/agent/status").with(EMPLOYEE))
                 .andExpect(jsonPath("$.mode").value("SIMULATED"))
                 .andExpect(jsonPath("$.simulated").value(true))
-                .andExpect(jsonPath("$.retrievers", Matchers.contains("KEYWORD")));
+                .andExpect(jsonPath("$.retrievers", Matchers.containsInAnyOrder("KEYWORD", "SEMANTIC")));
     }
 }

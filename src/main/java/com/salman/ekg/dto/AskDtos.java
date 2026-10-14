@@ -32,7 +32,7 @@ public final class AskDtos {
     }
 
     public record SubQuestionResult(int index, String text, List<String> keyTerms, boolean supported,
-                                    double bestCoverage, List<String> supportingRefs) {
+                                    double bestCoverage, Double bestSimilarity, List<String> supportingRefs) {
     }
 
     public record ConflictFact(String ref, String documentTitle, String value, String sentence) {

@@ -13,6 +13,7 @@ import java.util.Set;
 
 import jakarta.persistence.criteria.Predicate;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -32,6 +33,7 @@ import com.salman.ekg.dto.DocumentDtos.ChunkSummary;
 import com.salman.ekg.dto.DocumentDtos.DocumentDetail;
 import com.salman.ekg.dto.DocumentDtos.DocumentSummary;
 import com.salman.ekg.dto.DocumentDtos.VersionInfo;
+import com.salman.ekg.embedding.EmbeddingIndexer;
 import com.salman.ekg.exception.ApiException;
 import com.salman.ekg.ingestion.Chunker;
 import com.salman.ekg.ingestion.DocumentParser;
@@ -66,10 +68,12 @@ public class DocumentService {
     private final AccessPolicyService accessPolicy;
     private final KnowledgeProperties props;
     private final Clock clock;
+    private final ApplicationEventPublisher events;
 
     public DocumentService(KnowledgeDocumentRepository documents, DocumentVersionRepository versions,
                            KnowledgeChunkRepository chunks, DocumentParser parser, Chunker chunker,
-                           AccessPolicyService accessPolicy, KnowledgeProperties props, Clock clock) {
+                           AccessPolicyService accessPolicy, KnowledgeProperties props, Clock clock,
+                           ApplicationEventPublisher events) {
         this.documents = documents;
         this.versions = versions;
         this.chunks = chunks;
@@ -78,6 +82,7 @@ public class DocumentService {
         this.accessPolicy = accessPolicy;
         this.props = props;
         this.clock = clock;
+        this.events = events;
     }
 
     // ------------------------------------------------------------------ commands
@@ -302,6 +307,8 @@ public class DocumentService {
                         searchableText(doc, d), now))
                 .toList();
         chunks.saveAll(entities);
+        // Embeddings are computed after commit, outside this transaction (see EmbeddingIndexer).
+        events.publishEvent(new EmbeddingIndexer.DocumentIndexedEvent(doc.getId()));
     }
 
     private static String searchableText(KnowledgeDocument doc, Chunker.ChunkDraft d) {

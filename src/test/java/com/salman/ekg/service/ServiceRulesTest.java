@@ -66,7 +66,8 @@ class ServiceRulesTest {
         @BeforeEach
         void setUp() {
             service = new DocumentService(documents, versions, chunks, new DocumentParser(),
-                    new Chunker(TestProps.defaults()), policy, TestProps.defaults(), CLOCK);
+                    new Chunker(TestProps.defaults()), policy, TestProps.defaults(), CLOCK,
+                    mock(org.springframework.context.ApplicationEventPublisher.class));
             when(policy.canRead(Role.HR, AccessLevel.INTERNAL)).thenReturn(true);
             when(policy.canRead(Role.HR, AccessLevel.CONFIDENTIAL)).thenReturn(false);
             when(documents.save(any())).thenAnswer(inv -> inv.getArgument(0));

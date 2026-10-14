@@ -8,7 +8,9 @@ import static org.mockito.Mockito.when;
 
 import java.util.Collection;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -132,25 +134,72 @@ class RetrievalServiceTest {
     }
 
     @Test
-    @DisplayName("Re-rank promotes the passage whose own text covers the question")
-    void rerankByCoverage() {
-        List<RetrievedChunk> ranked = RetrievalService.rerank("annual leave days", List.of(
+    @DisplayName("Fusion (keyword only): the passage whose own text covers the question wins a keyword tie")
+    void fusionPromotesCoveringPassage() {
+        List<RetrievedChunk> ranked = RetrievalService.fuse("annual leave days", Map.of("KEYWORD", List.of(
                 hit(1, AccessLevel.INTERNAL, "Leave requests need 10 working days notice before the day of leave.", 0.9),
-                hit(2, AccessLevel.INTERNAL, "Full-time employees receive 25 days of paid annual leave.", 0.4)));
+                hit(2, AccessLevel.INTERNAL, "Full-time employees receive 25 days of paid annual leave.", 0.4))));
         assertThat(ranked).extracting(RetrievedChunk::chunkId).containsExactly(2L, 1L);
     }
 
     @Test
-    @DisplayName("Re-rank ignores outer headings that merely repeat the document title (regression)")
-    void rerankIgnoresTitleHeading() {
+    @DisplayName("Fusion ignores outer headings that merely repeat the document title (regression)")
+    void fusionIgnoresTitleHeading() {
         RetrievedChunk requesting = new RetrievedChunk(3, 1, "Annual Leave Policy", "HR", AccessLevel.INTERNAL, 1, 2,
                 "Annual Leave Policy > Requesting Leave", null,
                 "Leave requests must be submitted at least 10 working days before the first day of leave.", 0.9);
         RetrievedChunk entitlement = new RetrievedChunk(2, 1, "Annual Leave Policy", "HR", AccessLevel.INTERNAL, 1, 1,
                 "Annual Leave Policy > Entitlement", null,
                 "Full-time employees receive 25 days of paid annual leave per calendar year.", 0.5);
-        assertThat(RetrievalService.rerank("How many annual leave days do I get", List.of(requesting, entitlement)))
+        assertThat(RetrievalService.fuse("How many annual leave days do I get", Map.of("KEYWORD", List.of(requesting, entitlement))))
                 .extracting(RetrievedChunk::chunkId).containsExactly(2L, 3L);
+    }
+
+    private static RetrievedChunk semantic(long id, String content, double similarity) {
+        return new RetrievedChunk(id, id, "Doc " + id, "HR", AccessLevel.INTERNAL, 1, 0, null, null, content,
+                similarity, similarity, RetrievedChunk.SEMANTIC);
+    }
+
+    @Test
+    @DisplayName("Hybrid fusion: a passage found by both keyword and meaning ranks first and is labelled with both")
+    void hybridFusionRewardsAgreement() {
+        Map<String, List<RetrievedChunk>> rankings = new LinkedHashMap<>();
+        rankings.put("KEYWORD", List.of(hit(1, AccessLevel.INTERNAL, "Paid time is tracked weekly.", 0.8),
+                hit(2, AccessLevel.INTERNAL, "Employees receive 25 days of paid annual leave.", 0.5)));
+        rankings.put("SEMANTIC", List.of(semantic(2, "Employees receive 25 days of paid annual leave.", 0.77),
+                semantic(3, "Carry over up to 5 unused leave days.", 0.66)));
+        List<RetrievedChunk> fused = RetrievalService.fuse("How much paid time off do I get", rankings);
+
+        assertThat(fused).extracting(RetrievedChunk::chunkId).first().isEqualTo(2L);
+        assertThat(fused).filteredOn(h -> h.chunkId() == 2L).singleElement().satisfies(h -> {
+            assertThat(h.matchedBy()).isEqualTo("KEYWORD+SEMANTIC");
+            assertThat(h.similarity()).isEqualTo(0.77);
+        });
+        assertThat(fused).filteredOn(h -> h.chunkId() == 3L).singleElement()
+                .satisfies(h -> assertThat(h.matchedBy()).isEqualTo("SEMANTIC"));
+    }
+
+    @Test
+    @DisplayName("Hybrid: keyword and semantic run in parallel; mode is HYBRID; a meaning-only hit is returned")
+    void hybridModeWhenBothSucceed() {
+        Retriever keyword = retriever("KEYWORD", q -> List.of(hit(1, AccessLevel.INTERNAL, "work remotely policy", 0.3)));
+        Retriever meaning = retriever("SEMANTIC", q -> List.of(semantic(9, "Employees may work remotely 3 days", 0.66)));
+        RetrievalService.Result result = service(keyword, meaning).retrieve("Can I do my job from home?", EMPLOYEE, null, null, 5);
+        assertThat(result.mode()).isEqualTo("HYBRID");
+        assertThat(result.fallbackUsed()).isFalse();
+        assertThat(result.hits()).extracting(RetrievedChunk::chunkId).contains(1L, 9L);
+    }
+
+    @Test
+    @DisplayName("Semantic search down (e.g. Ollama stopped) → keyword results with a clear warning")
+    void semanticFailureFallsBackToKeyword() {
+        Retriever keyword = retriever("KEYWORD", q -> List.of(hit(1, AccessLevel.INTERNAL, "annual leave", 0.3)));
+        Retriever meaning = retriever("SEMANTIC", q -> { throw new IllegalStateException("connection refused"); });
+        RetrievalService.Result result = service(keyword, meaning).retrieve("annual leave", EMPLOYEE, null, null, 5);
+        assertThat(result.mode()).isEqualTo("KEYWORD");
+        assertThat(result.fallbackUsed()).isTrue();
+        assertThat(result.warnings()).singleElement().asString().startsWith("Semantic (meaning) search is unavailable");
+        assertThat(result.hits()).extracting(RetrievedChunk::chunkId).containsExactly(1L);
     }
 
     @Test

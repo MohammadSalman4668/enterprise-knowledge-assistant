@@ -49,6 +49,15 @@ export function renderSearch(app) {
   query.focus();
 }
 
+/** Why a result matched: shared words, similar meaning, or both. */
+function matchBadge(r) {
+  const how = r.matchedBy || 'KEYWORD';
+  const sim = r.similarity != null ? ` ${r.similarity.toFixed(2)}` : '';
+  if (how.includes('KEYWORD') && how.includes('SEMANTIC')) return badge(`keyword + meaning${sim}`, 'good', '≈');
+  if (how.includes('SEMANTIC')) return badge(`meaning${sim}`, 'info', '≈');
+  return badge('keyword', '', '⌕');
+}
+
 function renderResults(res) {
   const hl = (r) => r.matchedTerms.join(',');
   return h('div', { class: 'card' },
@@ -60,7 +69,7 @@ function renderResults(res) {
     res.results.length ? h('div', {}, res.results.map((r) => h('div', { class: 'result' },
       h('a', { class: 'title', href: `/source/${r.chunkId}?hl=${encodeURIComponent(hl(r))}` }, r.title),
       h('div', { class: 'meta' },
-        badge(r.category), levelBadge(r.accessLevel),
+        badge(r.category), levelBadge(r.accessLevel), matchBadge(r),
         h('span', { class: 'small muted' }, `v${r.version} · ${r.location} · score ${r.score}`)),
       h('div', {}, highlight(r.snippet, r.matchedTerms)))))
       : empty('No matching passages in documents you can access. Try other words or remove filters.'));

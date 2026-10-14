@@ -50,7 +50,7 @@ public final class AgentTypes {
                            List<String> required) {}
 
     /** Gate verdict for one sub-question. */
-    public record Assessment(SubQuestion subQuestion, boolean supported, double bestCoverage,
+    public record Assessment(SubQuestion subQuestion, boolean supported, double bestCoverage, double bestSimilarity,
                              List<EvidenceItem> support) {}
 
     public record ConflictingFact(String ref, String documentTitle, String value, String sentence) {}

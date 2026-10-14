@@ -140,7 +140,8 @@ public class ResearchAgent {
         }
         ctx.addTrace("GATE", null, Map.of("minCoverage", props.agent().minCoverage()), "OK",
                 assessments.stream().map(a -> "#" + (a.subQuestion().index() + 1) + (a.supported() ? " supported" : " NOT supported")
-                        + " (coverage " + a.bestCoverage() + ")").collect(Collectors.joining(" | ")), 0);
+                        + " (word coverage " + a.bestCoverage() + ", meaning similarity " + a.bestSimilarity() + ")")
+                        .collect(Collectors.joining(" | ")), 0);
 
         List<Assessment> supported = assessments.stream().filter(Assessment::supported).toList();
         if (supported.isEmpty()) {
@@ -258,7 +259,7 @@ public class ResearchAgent {
         }
         List<SubQuestionResult> subResults = assessments.stream()
                 .map(a -> new SubQuestionResult(a.subQuestion().index(), a.subQuestion().text(), a.subQuestion().keyTerms(),
-                        a.supported(), a.bestCoverage(), a.support().stream().map(EvidenceItem::ref).toList()))
+                        a.supported(), a.bestCoverage(), a.bestSimilarity(), a.support().stream().map(EvidenceItem::ref).toList()))
                 .toList();
         List<ConflictResult> conflictDtos = conflicts.stream()
                 .map(c -> new ConflictResult(c.quantity(), c.facts().stream()

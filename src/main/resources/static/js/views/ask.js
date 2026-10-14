@@ -197,10 +197,11 @@ function gatePanel(res) {
     h('summary', {}, 'Goals and evidence check'),
     h('div', { class: 'table-wrap' }, h('table', {},
       h('thead', {}, h('tr', {}, h('th', {}, '#'), h('th', {}, 'Sub-question'), h('th', {}, 'Key terms'),
-        h('th', { class: 'num' }, 'Coverage'), h('th', {}, 'Supported by'))),
+        h('th', { class: 'num' }, 'Word coverage'), h('th', { class: 'num' }, 'Meaning similarity'), h('th', {}, 'Supported by'))),
       h('tbody', {}, res.subQuestions.map((s) => h('tr', {},
         h('td', {}, s.index + 1), h('td', {}, s.text), h('td', { class: 'mono' }, s.keyTerms.join(', ')),
         h('td', { class: 'num' }, s.bestCoverage),
+        h('td', { class: 'num' }, s.bestSimilarity == null ? '-' : s.bestSimilarity),
         h('td', {}, s.supported ? s.supportingRefs.join(', ') : badge('insufficient', 'warning', '!'))))))),
     res.validationIssues.length
       ? h('div', { class: 'callout warning' }, h('strong', {}, 'Validation corrections'), res.validationIssues.map((i) => h('div', { class: 'small' }, i)))
