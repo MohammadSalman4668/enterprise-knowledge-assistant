@@ -6,9 +6,6 @@
 INSERT INTO access_policy (user_role, document_access_level) VALUES
     ('EMPLOYEE', 'PUBLIC'),
     ('EMPLOYEE', 'INTERNAL'),
-    ('ENGINEER', 'PUBLIC'),
-    ('ENGINEER', 'INTERNAL'),
-    ('ENGINEER', 'CONFIDENTIAL'),
     ('HR',       'PUBLIC'),
     ('HR',       'INTERNAL'),
     ('HR',       'RESTRICTED'),
@@ -19,6 +16,5 @@ INSERT INTO access_policy (user_role, document_access_level) VALUES
 
 INSERT INTO app_user (username, display_name, role) VALUES
     ('employee', 'Emma Employee', 'EMPLOYEE'),
-    ('engineer', 'Eli Engineer',  'ENGINEER'),
     ('hr',       'Hana HR',       'HR'),
     ('admin',    'Ada Admin',     'ADMIN');

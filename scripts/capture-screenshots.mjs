@@ -135,8 +135,8 @@ try {
   await waitFor('.content');
   await shot('09-source-preview.png', { full: false });
 
-  // ---- Lifecycle: engineer uploads (pending) → admin queue → approve → revision → re-index → obsolete chunk
-  await signIn('engineer');
+  // ---- Lifecycle: HR uploads (pending) → admin queue → approve → revision → re-index → obsolete chunk
+  await signIn('hr');
   const upload = await evaluate(`(async () => { const a = JSON.parse(sessionStorage.getItem('ekg.auth')); const fd = new FormData();
     fd.append('file', new Blob([${JSON.stringify(readFileSync('docs/samples/parking-policy.md', 'utf8'))}], { type: 'text/markdown' }), 'parking-policy.md');
     fd.append('title', 'Parking Policy'); fd.append('category', 'Facilities'); fd.append('accessLevel', 'INTERNAL');
@@ -155,7 +155,7 @@ try {
 
   const before = await apiCall('/api/knowledge/search', 'POST', { query: 'visitor parking hours', category: 'Facilities', limit: 1 });
   const oldChunk = before.body.results[0]?.chunkId;
-  await signIn('engineer');
+  await signIn('hr');
   await evaluate(`(async () => { const a = JSON.parse(sessionStorage.getItem('ekg.auth')); const fd = new FormData();
     fd.append('file', new Blob([${JSON.stringify(readFileSync('docs/samples/parking-policy-v2.md', 'utf8'))}], { type: 'text/markdown' }), 'parking-policy-v2.md');
     await fetch('/api/knowledge/documents/${parking.id}/revisions', { method: 'POST', headers: { Authorization: 'Basic ' + a.token }, body: fd }); return true; })()`);

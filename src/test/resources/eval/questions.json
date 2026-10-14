@@ -9,7 +9,7 @@
     "expectedOutcome": "ANSWERED", "facts": ["30 days"], "documents": ["Travel and Expense Policy"] },
   { "id": "Q05", "role": "EMPLOYEE", "question": "How do I reset my VPN token?",
     "expectedOutcome": "ANSWERED", "facts": ["self-service portal"], "documents": ["VPN Access Runbook"] },
-  { "id": "Q06", "role": "ENGINEER", "question": "Within how many minutes must the on-call engineer acknowledge a Severity 1 page?",
+  { "id": "Q06", "role": "ADMIN", "question": "Within how many minutes must the on-call engineer acknowledge a Severity 1 page?",
     "expectedOutcome": "ANSWERED", "facts": ["5 minutes"], "documents": ["Incident Response Runbook"] },
   { "id": "Q07", "role": "EMPLOYEE", "question": "Within how many minutes must the on-call engineer acknowledge a Severity 1 page?",
     "expectedOutcome": "ABSTAINED", "facts": [], "documents": [] },

@@ -111,7 +111,7 @@ function table(rows, columns) {
 }
 
 function roleSelect(slot) {
-  const sel = select('role-select', ['EMPLOYEE', 'ENGINEER', 'HR', 'ADMIN'], { value: 'EMPLOYEE' });
+  const sel = select('role-select', ['EMPLOYEE', 'HR', 'ADMIN'], { value: 'EMPLOYEE' });
   sel.setAttribute('aria-label', 'Role');
   sel.style.width = 'auto';
   sel.addEventListener('change', () => loadRole(slot, sel.value));

@@ -46,7 +46,7 @@ class DocumentApiIntegrationTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("TC-05-01: supported non-empty upload is indexed (with doc + version on every chunk) and searchable after approval")
     void tc01_uploadIndexedAndSearchable() throws Exception {
-        MvcResult created = mvc.perform(upload(file("parking.md", NEW_DOC), "Parking Policy", "Facilities", "INTERNAL").with(ENGINEER))
+        MvcResult created = mvc.perform(upload(file("parking.md", NEW_DOC), "Parking Policy", "Facilities", "INTERNAL").with(HR))
                 .andExpect(status().isCreated())
                 .andExpect(header().string("Location", Matchers.startsWith("/api/knowledge/documents/")))
                 .andExpect(jsonPath("$.status").value("PENDING_APPROVAL"))
@@ -118,12 +118,12 @@ class DocumentApiIntegrationTest extends AbstractIntegrationTest {
     void roleRules() throws Exception {
         mvc.perform(upload(file("x.md", "# X\n\nSome text"), "X", "HR", "INTERNAL").with(EMPLOYEE))
                 .andExpect(status().isForbidden());
-        mvc.perform(upload(file("x.md", "# X\n\nSome text"), "X", "HR", "RESTRICTED").with(ENGINEER))
+        mvc.perform(upload(file("x.md", "# X\n\nSome text"), "X", "IT", "CONFIDENTIAL").with(HR))
                 .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("ACCESS_LEVEL_NOT_PERMITTED"));
-        MvcResult created = mvc.perform(upload(file("x.md", "# X\n\nSome text"), "X", "IT", "INTERNAL").with(ENGINEER))
+        MvcResult created = mvc.perform(upload(file("x.md", "# X\n\nSome text"), "X", "IT", "INTERNAL").with(HR))
                 .andExpect(status().isCreated()).andReturn();
         long id = ((Number) json(created, "$.id")).longValue();
-        mvc.perform(post("/api/knowledge/documents/{id}/approve", id).with(ENGINEER)).andExpect(status().isForbidden());
+        mvc.perform(post("/api/knowledge/documents/{id}/approve", id).with(HR)).andExpect(status().isForbidden());
         mvc.perform(get("/api/knowledge/documents/{id}", id)).andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
     }
@@ -152,7 +152,7 @@ class DocumentApiIntegrationTest extends AbstractIntegrationTest {
         mvc.perform(get("/api/knowledge/documents").param("category", "engineering").param("status", "ACTIVE").with(EMPLOYEE))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[*].title", Matchers.contains("Production Deployment Runbook")));
-        mvc.perform(get("/api/knowledge/documents").param("category", "engineering").with(ENGINEER))
+        mvc.perform(get("/api/knowledge/documents").param("category", "engineering").with(ADMIN))
                 .andExpect(jsonPath("$.content[*].title",
                         Matchers.containsInAnyOrder("Production Deployment Runbook", "Incident Response Runbook")));
     }

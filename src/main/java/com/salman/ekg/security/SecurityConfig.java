@@ -48,7 +48,7 @@ public class SecurityConfig {
                                 "/api/knowledge/documents/*/archive").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST,
                                 "/api/knowledge/documents",
-                                "/api/knowledge/documents/*/revisions").hasAnyRole("ENGINEER", "HR", "ADMIN")
+                                "/api/knowledge/documents/*/revisions").hasAnyRole("HR", "ADMIN")
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().denyAll())
                 .httpBasic(basic -> basic.authenticationEntryPoint(jsonEntryPoint()))

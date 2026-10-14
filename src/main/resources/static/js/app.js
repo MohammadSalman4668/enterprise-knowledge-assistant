@@ -13,9 +13,8 @@ import { state } from './state.js';
 
 const DEMO_USERS = [
   ['employee', 'Employee', 'public + internal'],
-  ['engineer', 'Engineer', '+ confidential runbooks'],
   ['hr', 'HR', '+ restricted HR data'],
-  ['admin', 'Admin', 'everything, approvals'],
+  ['admin', 'Admin', 'everything incl. confidential, approvals'],
 ];
 
 function renderLogin(error) {

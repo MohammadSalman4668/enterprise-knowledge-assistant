@@ -133,7 +133,6 @@ class PersistenceAndReportsIntegrationTest extends AbstractIntegrationTest {
         // 5. accessible documents per role follow the policy table
         assertThat(analytics.accessibleToRole("EMPLOYEE")).hasSize(8)
                 .noneMatch(r -> Set.of("CONFIDENTIAL", "RESTRICTED").contains(r.get("access_level")));
-        assertThat(analytics.accessibleToRole("ENGINEER")).hasSize(9);
         assertThat(analytics.accessibleToRole("HR")).hasSize(9)
                 .noneMatch(r -> "CONFIDENTIAL".equals(r.get("access_level")));
         assertThat(analytics.accessibleToRole("ADMIN")).hasSize(10);

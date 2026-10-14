@@ -44,7 +44,7 @@ public class DemoUserInitializer implements ApplicationRunner {
             byte[] bytes = new byte[12];
             new SecureRandom().nextBytes(bytes);
             password = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-            log.warn("EKG_DEMO_PASSWORD is not set. Generated demo password for employee/engineer/hr/admin: {}", password);
+            log.warn("EKG_DEMO_PASSWORD is not set. Generated demo password for employee/hr/admin: {}", password);
         }
         String hash = encoder.encode(password);
         users.findAll().forEach(u -> u.setPasswordHash(hash));

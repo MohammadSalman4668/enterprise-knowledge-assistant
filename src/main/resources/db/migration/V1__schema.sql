@@ -13,17 +13,17 @@ CREATE TABLE app_user (
     role          VARCHAR(16)  NOT NULL,
     enabled       BOOLEAN      NOT NULL DEFAULT TRUE,
     CONSTRAINT uk_app_user_username UNIQUE (username),
-    CONSTRAINT ck_app_user_role CHECK (role IN ('EMPLOYEE', 'ENGINEER', 'HR', 'ADMIN'))
+    CONSTRAINT ck_app_user_role CHECK (role IN ('EMPLOYEE', 'HR', 'ADMIN'))
 );
 
 -- Which role may read which access level. Not hierarchical on purpose:
--- HR can read RESTRICTED (people data) but not CONFIDENTIAL engineering runbooks.
+-- HR can read RESTRICTED (people data) but not CONFIDENTIAL runbooks, which only Admin can read.
 CREATE TABLE access_policy (
     id                    BIGSERIAL   PRIMARY KEY,
     user_role             VARCHAR(16) NOT NULL,
     document_access_level VARCHAR(16) NOT NULL,
     CONSTRAINT uk_access_policy UNIQUE (user_role, document_access_level),
-    CONSTRAINT ck_access_policy_role  CHECK (user_role IN ('EMPLOYEE', 'ENGINEER', 'HR', 'ADMIN')),
+    CONSTRAINT ck_access_policy_role  CHECK (user_role IN ('EMPLOYEE', 'HR', 'ADMIN')),
     CONSTRAINT ck_access_policy_level CHECK (document_access_level IN ('PUBLIC', 'INTERNAL', 'CONFIDENTIAL', 'RESTRICTED'))
 );
 

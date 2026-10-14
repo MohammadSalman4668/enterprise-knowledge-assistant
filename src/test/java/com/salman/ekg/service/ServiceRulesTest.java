@@ -67,8 +67,8 @@ class ServiceRulesTest {
         void setUp() {
             service = new DocumentService(documents, versions, chunks, new DocumentParser(),
                     new Chunker(TestProps.defaults()), policy, TestProps.defaults(), CLOCK);
-            when(policy.canRead(Role.ENGINEER, AccessLevel.INTERNAL)).thenReturn(true);
-            when(policy.canRead(Role.ENGINEER, AccessLevel.RESTRICTED)).thenReturn(false);
+            when(policy.canRead(Role.HR, AccessLevel.INTERNAL)).thenReturn(true);
+            when(policy.canRead(Role.HR, AccessLevel.CONFIDENTIAL)).thenReturn(false);
             when(documents.save(any())).thenAnswer(inv -> inv.getArgument(0));
         }
 
@@ -85,14 +85,14 @@ class ServiceRulesTest {
 
         @Test
         void cannotUploadAtUnreadableLevel() {
-            assertThat(code(() -> service.upload(cmd(AccessLevel.RESTRICTED, "# A\n\nx"), new CurrentUser("e", Role.ENGINEER))))
+            assertThat(code(() -> service.upload(cmd(AccessLevel.CONFIDENTIAL, "# A\n\nx"), new CurrentUser("e", Role.HR))))
                     .isEqualTo("ACCESS_LEVEL_NOT_PERMITTED");
         }
 
         @Test
         void duplicateContentIsRejectedBeforeSaving() {
             when(documents.existsByContentHashAndStatusNotIn(anyString(), anyCollection())).thenReturn(true);
-            assertThat(code(() -> service.upload(cmd(AccessLevel.INTERNAL, "# A\n\nx"), new CurrentUser("e", Role.ENGINEER))))
+            assertThat(code(() -> service.upload(cmd(AccessLevel.INTERNAL, "# A\n\nx"), new CurrentUser("e", Role.HR))))
                     .isEqualTo("DUPLICATE_DOCUMENT");
             verify(documents, never()).save(any());
         }
@@ -101,10 +101,10 @@ class ServiceRulesTest {
         @DisplayName("New uploads start as version 1 awaiting approval, with chunks written in the same call")
         void uploadCreatesPendingVersionOne() {
             KnowledgeDocument doc = service.upload(cmd(AccessLevel.INTERNAL, "# Title\n\nSome content here."),
-                    new CurrentUser("eli", Role.ENGINEER));
+                    new CurrentUser("hana", Role.HR));
             assertThat(doc.getStatus()).isEqualTo(DocumentStatus.PENDING_APPROVAL);
             assertThat(doc.getCurrentVersion()).isEqualTo(1);
-            assertThat(doc.getOwner()).isEqualTo("eli");
+            assertThat(doc.getOwner()).isEqualTo("hana");
             assertThat(doc.getContentHash()).hasSize(64);
             verify(versions).save(any());
             verify(chunks).saveAll(any());
@@ -112,7 +112,7 @@ class ServiceRulesTest {
 
         @Test
         void approvingTwiceIsAnInvalidTransition() {
-            KnowledgeDocument doc = new KnowledgeDocument("T", "IT", "eli", AccessLevel.INTERNAL, "t.md", "text/markdown", "h", CLOCK.instant());
+            KnowledgeDocument doc = new KnowledgeDocument("T", "IT", "hana", AccessLevel.INTERNAL, "t.md", "text/markdown", "h", CLOCK.instant());
             doc.changeStatus(DocumentStatus.ACTIVE, CLOCK.instant());
             when(documents.findById(1L)).thenReturn(Optional.of(doc));
             assertThat(code(() -> service.approve(1L, new CurrentUser("admin", Role.ADMIN)))).isEqualTo("INVALID_STATE_TRANSITION");

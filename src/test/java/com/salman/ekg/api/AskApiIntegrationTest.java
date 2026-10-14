@@ -174,7 +174,7 @@ class AskApiIntegrationTest extends AbstractIntegrationTest {
         // Duplicate → 409; someone else's answer → 404; out-of-range rating → 400; uncited doc → 400
         mvc.perform(postJson("/api/knowledge/feedback", body).with(EMPLOYEE))
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("FEEDBACK_ALREADY_SUBMITTED"));
-        mvc.perform(postJson("/api/knowledge/feedback", body).with(ENGINEER)).andExpect(status().isNotFound());
+        mvc.perform(postJson("/api/knowledge/feedback", body).with(HR)).andExpect(status().isNotFound());
         mvc.perform(postJson("/api/knowledge/feedback", Map.of("answerId", answerId, "rating", 6)).with(EMPLOYEE))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.fieldErrors[0].field").value("rating"));
         Map<String, Object> other = ask("How do I reset my VPN token?", EMPLOYEE);

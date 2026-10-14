@@ -59,7 +59,7 @@ public abstract class AbstractIntegrationTest {
     }
 
     protected static final RequestPostProcessor EMPLOYEE = as("EMPLOYEE");
-    protected static final RequestPostProcessor ENGINEER = as("ENGINEER");
+
     protected static final RequestPostProcessor HR = as("HR");
     protected static final RequestPostProcessor ADMIN = as("ADMIN");
 
