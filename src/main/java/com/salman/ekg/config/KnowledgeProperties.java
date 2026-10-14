@@ -32,38 +32,31 @@ public record KnowledgeProperties(
     /**
      * provider:
      * <ul>
-     *   <li>{@code auto} (default): Anthropic when an API key is present, otherwise the simulation;</li>
-     *   <li>{@code simulated}: never call a model;</li>
-     *   <li>{@code anthropic}: Anthropic Messages API (requires {@code apiKey});</li>
-     *   <li>{@code openai-compatible} (alias {@code ollama}): any server exposing
-     *       {@code POST {baseUrl}/chat/completions}, e.g. a local Ollama at http://localhost:11434/v1.
-     *       {@code apiKey} is optional and sent as a Bearer token when set.</li>
+     *   <li>{@code ollama} (default): a local Ollama server at {@code baseUrl}
+     *       (e.g. http://localhost:11434/v1) running {@code model} (e.g. qwen2.5:3b);</li>
+     *   <li>{@code simulated}: never call a model (deterministic, clearly labelled).</li>
      * </ul>
+     * If Ollama is unreachable at request time, the agent falls back to the simulation and
+     * marks the answer as degraded.
      */
-    public record Llm(String provider, String apiKey, String model, Duration timeout, int maxTokens, String baseUrl) {
+    public record Llm(String provider, String model, Duration timeout, int maxTokens, String baseUrl) {
 
-        public enum Provider { SIMULATED, ANTHROPIC, OPENAI_COMPATIBLE }
-
-        public boolean hasApiKey() {
-            return apiKey != null && !apiKey.isBlank();
-        }
+        public enum Provider { SIMULATED, OLLAMA }
 
         public Provider resolve() {
-            return switch (provider == null ? "auto" : provider.strip().toLowerCase()) {
+            return switch (provider == null ? "ollama" : provider.strip().toLowerCase()) {
                 case "simulated" -> Provider.SIMULATED;
-                case "anthropic" -> {
-                    if (!hasApiKey()) {
-                        throw new IllegalStateException("ekg.llm.provider=anthropic requires ANTHROPIC_API_KEY or ekg.llm.api-key");
-                    }
-                    yield Provider.ANTHROPIC;
-                }
-                case "openai-compatible", "ollama" -> {
+                case "ollama" -> {
                     if (baseUrl == null || baseUrl.isBlank()) {
-                        throw new IllegalStateException("ekg.llm.provider=" + provider + " requires ekg.llm.base-url");
+                        throw new IllegalStateException("ekg.llm.provider=ollama requires ekg.llm.base-url");
                     }
-                    yield Provider.OPENAI_COMPATIBLE;
+                    if (model == null || model.isBlank()) {
+                        throw new IllegalStateException("ekg.llm.provider=ollama requires ekg.llm.model");
+                    }
+                    yield Provider.OLLAMA;
                 }
-                default -> hasApiKey() ? Provider.ANTHROPIC : Provider.SIMULATED;
+                default -> throw new IllegalStateException(
+                        "Unknown ekg.llm.provider '" + provider + "'. Use 'ollama' or 'simulated'");
             };
         }
     }

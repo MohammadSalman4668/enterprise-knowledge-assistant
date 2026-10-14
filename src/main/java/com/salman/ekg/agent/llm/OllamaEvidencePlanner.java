@@ -15,17 +15,17 @@ import com.salman.ekg.agent.EvidencePlanner;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * LIVE planner for OpenAI-compatible servers (e.g. a local Ollama model) using function
- * calling. Same contract as {@link ClaudeEvidencePlanner}: the model only <em>requests</em>
- * tool calls; {@link AgentToolbox} decides whether they run, with the caller's identity.
+ * LIVE planner: the local Ollama model chooses which tool calls to make (function calling).
+ * The model only <em>requests</em> a call; {@link AgentToolbox} decides whether it runs,
+ * with the caller's real identity, the allow-list, the budget and the injection guard.
  */
-public class OpenAiCompatibleEvidencePlanner implements EvidencePlanner {
+public class OllamaEvidencePlanner implements EvidencePlanner {
 
-    private final OpenAiCompatibleClient client;
+    private final OllamaClient client;
     private final AgentToolbox toolbox;
     private final ObjectMapper mapper;
 
-    public OpenAiCompatibleEvidencePlanner(OpenAiCompatibleClient client, AgentToolbox toolbox, ObjectMapper mapper) {
+    public OllamaEvidencePlanner(OllamaClient client, AgentToolbox toolbox, ObjectMapper mapper) {
         this.client = client;
         this.toolbox = toolbox;
         this.mapper = mapper;
@@ -39,20 +39,20 @@ public class OpenAiCompatibleEvidencePlanner implements EvidencePlanner {
             prompt.append("The user restricted the search to category: ").append(ctx.category()).append('\n');
         }
         List<Map<String, Object>> messages = new ArrayList<>();
-        messages.add(Map.of("role", "system", "content", ClaudeEvidencePlanner.SYSTEM));
+        messages.add(Map.of("role", "system", "content", AgentPrompts.RESEARCH_SYSTEM));
         messages.add(Map.of("role", "user", "content", prompt.toString()));
-        List<Map<String, Object>> tools = toolbox.specs().stream().map(OpenAiCompatibleEvidencePlanner::toTool).toList();
+        List<Map<String, Object>> tools = toolbox.specs().stream().map(OllamaEvidencePlanner::toTool).toList();
 
         for (int turn = 0; turn <= ctx.maxToolCalls(); turn++) {
-            OpenAiCompatibleClient.Message reply = client.chat(messages, tools);
-            List<OpenAiCompatibleClient.ToolCall> calls = reply.tool_calls() == null ? List.of() : reply.tool_calls();
+            OllamaClient.Message reply = client.chat(messages, tools);
+            List<OllamaClient.ToolCall> calls = reply.tool_calls() == null ? List.of() : reply.tool_calls();
             if (calls.isEmpty()) {
                 return;
             }
             List<Map<String, Object>> echoed = new ArrayList<>();
             List<Map<String, Object>> results = new ArrayList<>();
             for (int i = 0; i < calls.size(); i++) {
-                OpenAiCompatibleClient.ToolCall call = calls.get(i);
+                OllamaClient.ToolCall call = calls.get(i);
                 String id = call.id() == null || call.id().isBlank() ? "call_" + turn + "_" + i : call.id();
                 String name = call.function() == null ? "" : call.function().name();
                 Map<String, Object> args = parseArguments(call.function() == null ? null : call.function().arguments());

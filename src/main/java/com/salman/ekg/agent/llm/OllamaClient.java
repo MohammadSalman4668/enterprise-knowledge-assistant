@@ -6,7 +6,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
@@ -14,11 +13,11 @@ import org.springframework.web.client.RestClient;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 /**
- * Minimal client for the OpenAI-compatible {@code /chat/completions} endpoint, which is
- * served by Ollama (local, free), and by several hosted providers. Only the fields this
- * application needs are modelled.
+ * Minimal client for a local Ollama server, using its OpenAI-compatible
+ * {@code POST /v1/chat/completions} endpoint. Free, offline, no API key. Only the fields
+ * this application needs are modelled.
  */
-public class OpenAiCompatibleClient {
+public class OllamaClient {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record ChatResponse(List<Choice> choices) {}
@@ -40,7 +39,7 @@ public class OpenAiCompatibleClient {
     private final String model;
     private final int maxTokens;
 
-    public OpenAiCompatibleClient(RestClient http, String model, int maxTokens) {
+    public OllamaClient(RestClient http, String model, int maxTokens) {
         this.http = http;
         this.model = model;
         this.maxTokens = maxTokens;
@@ -74,16 +73,13 @@ public class OpenAiCompatibleClient {
         return response.choices().getFirst().message();
     }
 
-    /** Configures base URL, optional Bearer key and timeouts on a (Spring-provided) RestClient builder. */
-    public static RestClient configure(RestClient.Builder builder, String baseUrl, String apiKey, Duration timeout) {
+    /** Configures base URL and timeouts on a RestClient builder. */
+    public static RestClient configure(RestClient.Builder builder, String baseUrl, Duration timeout) {
         JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(
                 HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build());
         factory.setReadTimeout(timeout);
-        builder.baseUrl(baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl)
-                .requestFactory(factory);
-        if (apiKey != null && !apiKey.isBlank()) {
-            builder.defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey);
-        }
-        return builder.build();
+        return builder.baseUrl(baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl)
+                .requestFactory(factory)
+                .build();
     }
 }

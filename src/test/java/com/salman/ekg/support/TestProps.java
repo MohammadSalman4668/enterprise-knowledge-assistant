@@ -19,7 +19,7 @@ public final class TestProps {
                 new KnowledgeProperties.Ingestion(5_242_880, 800),
                 new KnowledgeProperties.Retrieval(retrieval, 10),
                 new KnowledgeProperties.Agent(10, 0.6, 2, 3),
-                new KnowledgeProperties.Llm("simulated", "", "test-model", llm, 512, ""),
+                new KnowledgeProperties.Llm("simulated", "test-model", llm, 512, ""),
                 new KnowledgeProperties.Seed(false),
                 new KnowledgeProperties.Demo("unused"));
     }

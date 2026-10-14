@@ -10,7 +10,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
-import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
@@ -42,8 +41,8 @@ import com.salman.ekg.service.SearchService;
 
 import tools.jackson.databind.json.JsonMapper;
 
-/** The OpenAI-compatible (e.g. Ollama) adapter, tested against a mocked HTTP server: no real model is called. */
-class OpenAiCompatibleAdapterTest {
+/** The Ollama adapter, tested against a mocked HTTP server: no real model is called. */
+class OllamaAdapterTest {
 
     private static final String BASE = "http://localhost:11434/v1";
     private static final CurrentUser EMPLOYEE = new CurrentUser("employee", Role.EMPLOYEE);
@@ -52,14 +51,14 @@ class OpenAiCompatibleAdapterTest {
 
     private final RetrievalService retrieval = mock(RetrievalService.class);
     private MockRestServiceServer server;
-    private OpenAiCompatibleClient client;
+    private OllamaClient client;
     private AgentToolbox toolbox;
 
     @BeforeEach
     void setUp() {
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
-        client = new OpenAiCompatibleClient(builder.baseUrl(BASE).build(), "qwen2.5:7b", 256);
+        client = new OllamaClient(builder.baseUrl(BASE).build(), "qwen2.5:7b", 256);
         toolbox = new AgentToolbox(retrieval, mock(SearchService.class), new InjectionGuard());
         when(retrieval.retrieve(anyString(), any(), any(), any(), anyInt()))
                 .thenReturn(new RetrievalService.Result(List.of(VPN), "KEYWORD", false, List.of()));
@@ -89,7 +88,7 @@ class OpenAiCompatibleAdapterTest {
                         MediaType.APPLICATION_JSON));
 
         AgentContext ctx = new AgentContext(EMPLOYEE, null, 10);
-        new OpenAiCompatibleEvidencePlanner(client, toolbox, JsonMapper.builder().build())
+        new OllamaEvidencePlanner(client, toolbox, JsonMapper.builder().build())
                 .collect(ctx, "How do I reset my VPN token?", List.of(new SubQuestion(0, "reset vpn token", List.of("reset", "vpn", "token"))));
 
         server.verify();
@@ -108,35 +107,25 @@ class OpenAiCompatibleAdapterTest {
         server.expect(requestTo(BASE + "/chat/completions"))
                 .andRespond(withSuccess("{\"choices\":[]}", MediaType.APPLICATION_JSON));
 
-        OpenAiCompatibleSynthesizer synth = new OpenAiCompatibleSynthesizer(client);
+        OllamaSynthesizer synth = new OllamaSynthesizer(client);
         SynthesisInput input = new SynthesisInput("q", List.of(), List.of());
         assertThat(synth.compose(input)).isEqualTo("Open the portal [E1].");
         assertThatThrownBy(() -> synth.compose(input)).isInstanceOf(IllegalStateException.class);
     }
 
     @Test
-    @DisplayName("Optional API key is sent as a Bearer token")
-    void bearerKey() {
-        RestClient.Builder builder = RestClient.builder();
-        MockRestServiceServer keyed = MockRestServiceServer.bindTo(builder).build();
-        keyed.expect(requestTo(BASE + "/chat/completions")).andExpect(header("Authorization", "Bearer test-key"))
-                .andRespond(withSuccess("{\"choices\":[{\"message\":{\"content\":\"ok\"}}]}", MediaType.APPLICATION_JSON));
-        builder.baseUrl(BASE).defaultHeader("Authorization", "Bearer test-key");
-        new OpenAiCompatibleClient(builder.build(), "m", 10).chat(List.of(), List.of());
-        keyed.verify();
-    }
-
-    @Test
-    @DisplayName("Provider resolution: ollama needs a base URL; auto stays simulated without a key")
+    @DisplayName("Provider resolution: ollama (default) needs a base URL and model; simulated needs nothing; others rejected")
     void providerResolution() {
         Duration t = Duration.ofSeconds(1);
-        assertThat(new KnowledgeProperties.Llm("ollama", "", "m", t, 1, BASE).resolve())
-                .isEqualTo(KnowledgeProperties.Llm.Provider.OPENAI_COMPATIBLE);
-        assertThat(new KnowledgeProperties.Llm("auto", "", "m", t, 1, "").resolve())
+        assertThat(new KnowledgeProperties.Llm("ollama", "qwen2.5:3b", t, 1, BASE).resolve())
+                .isEqualTo(KnowledgeProperties.Llm.Provider.OLLAMA);
+        assertThat(new KnowledgeProperties.Llm(null, "qwen2.5:3b", t, 1, BASE).resolve())
+                .isEqualTo(KnowledgeProperties.Llm.Provider.OLLAMA);
+        assertThat(new KnowledgeProperties.Llm("simulated", "", t, 1, "").resolve())
                 .isEqualTo(KnowledgeProperties.Llm.Provider.SIMULATED);
-        assertThat(new KnowledgeProperties.Llm("auto", "sk-x", "m", t, 1, "").resolve())
-                .isEqualTo(KnowledgeProperties.Llm.Provider.ANTHROPIC);
-        assertThatThrownBy(() -> new KnowledgeProperties.Llm("ollama", "", "m", t, 1, " ").resolve())
+        assertThatThrownBy(() -> new KnowledgeProperties.Llm("ollama", "m", t, 1, " ").resolve())
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> new KnowledgeProperties.Llm("unknown-provider", "m", t, 1, BASE).resolve())
                 .isInstanceOf(IllegalStateException.class);
     }
 }

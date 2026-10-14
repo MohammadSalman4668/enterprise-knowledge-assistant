@@ -59,9 +59,8 @@ public class AskController {
                 retrievers.stream().map(Retriever::name).toList(),
                 props.agent().maxToolCalls(), props.agent().minCoverage(),
                 simulated ? "SIMULATION: no AI model is called. Research and answers are produced by deterministic "
-                        + "Java code (keyword search + extractive quoting). Configure ekg.llm.* (Anthropic key or a local "
-                        + "Ollama model) to enable a live model."
-                        : "Live model " + models.modelName() + " chooses searches and phrases answers; Java enforces "
+                        + "Java code (keyword search + extractive quoting). Set ekg.llm.provider=ollama to use the local model."
+                        : "Local Ollama model " + models.modelName() + " chooses searches and phrases answers; Java enforces "
                         + "permissions, evidence sufficiency and citation validation.");
     }
 }

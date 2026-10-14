@@ -6,8 +6,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.client.RestClient;
 
-import com.anthropic.client.AnthropicClient;
-import com.anthropic.client.okhttp.AnthropicOkHttpClient;
 import com.salman.ekg.agent.AgentModels;
 import com.salman.ekg.agent.AgentToolbox;
 import com.salman.ekg.agent.DeterministicEvidencePlanner;
@@ -18,9 +16,8 @@ import com.salman.ekg.domain.AgentMode;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * Chooses the model provider at startup (see {@link KnowledgeProperties.Llm#resolve()}):
- * the labelled simulation, Anthropic, or any OpenAI-compatible server such as a local,
- * free Ollama. Keys are read from configuration and never logged.
+ * Chooses the agent's model at startup (see {@link KnowledgeProperties.Llm#resolve()}):
+ * a local Ollama model, or the clearly labelled simulation.
  */
 @Configuration
 public class AgentModelConfig {
@@ -33,28 +30,17 @@ public class AgentModelConfig {
                             ExtractiveSynthesizer extractive, ObjectMapper mapper) {
         KnowledgeProperties.Llm llm = props.llm();
         return switch (llm.resolve()) {
-            case ANTHROPIC -> {
-                AnthropicClient client = AnthropicOkHttpClient.builder()
-                        .apiKey(llm.apiKey())
-                        .timeout(llm.timeout())
-                        .maxRetries(1)
-                        .build();
-                log.info("Agent mode LIVE using Anthropic model {}", llm.model());
-                yield new AgentModels(AgentMode.LIVE, llm.model(),
-                        new ClaudeEvidencePlanner(client, toolbox, llm.model(), llm.maxTokens()),
-                        new ClaudeSynthesizer(client, llm.model(), llm.maxTokens()));
-            }
-            case OPENAI_COMPATIBLE -> {
-                OpenAiCompatibleClient client = new OpenAiCompatibleClient(
-                        OpenAiCompatibleClient.configure(RestClient.builder(), llm.baseUrl(), llm.apiKey(), llm.timeout()),
+            case OLLAMA -> {
+                OllamaClient client = new OllamaClient(
+                        OllamaClient.configure(RestClient.builder(), llm.baseUrl(), llm.timeout()),
                         llm.model(), llm.maxTokens());
-                log.info("Agent mode LIVE using OpenAI-compatible model {} at {}", llm.model(), llm.baseUrl());
+                log.info("Agent mode LIVE using Ollama model {} at {}", llm.model(), llm.baseUrl());
                 yield new AgentModels(AgentMode.LIVE, llm.model(),
-                        new OpenAiCompatibleEvidencePlanner(client, toolbox, mapper),
-                        new OpenAiCompatibleSynthesizer(client));
+                        new OllamaEvidencePlanner(client, toolbox, mapper),
+                        new OllamaSynthesizer(client));
             }
             case SIMULATED -> {
-                log.warn("Agent mode SIMULATED: no model is called (configure ekg.llm.* to enable a live model)");
+                log.warn("Agent mode SIMULATED: no model is called (set ekg.llm.provider=ollama to use the local model)");
                 yield new AgentModels(AgentMode.SIMULATED, SIMULATED_MODEL_NAME, deterministicPlanner, extractive);
             }
         };
