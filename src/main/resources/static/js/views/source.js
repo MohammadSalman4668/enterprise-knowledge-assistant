@@ -25,7 +25,7 @@ export async function renderSource(app, chunkId, params) {
       h('div', { class: 'card' },
         h('div', { class: 'content' }, highlight(c.content, terms)),
         h('p', { class: 'small muted', style: 'margin-top:12px' },
-          h('a', { href: `#/documents/${c.documentId}` }, 'Open document details and version history ›'))));
+          h('a', { href: `/documents/${c.documentId}` }, 'Open document details and version history ›'))));
   } catch (err) {
     mount(app, h('div', { class: 'card' }, errorBox(err),
       h('p', { class: 'muted small' }, 'Passages you are not allowed to read are reported as not found.')));

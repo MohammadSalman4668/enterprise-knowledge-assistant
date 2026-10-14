@@ -18,6 +18,8 @@ import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
 
+import com.salman.ekg.config.WebPageRoutes;
+
 /**
  * Stateless HTTP Basic security.
  * <ul>
@@ -40,6 +42,8 @@ public class SecurityConfig {
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/", "/index.html", "/css/**", "/js/**", "/favicon.svg", "/error").permitAll()
+                        // Page URLs only return the app shell (no data); data stays behind /api/**.
+                        .requestMatchers(WebPageRoutes.PAGE_PATHS.toArray(String[]::new)).permitAll()
                         .requestMatchers("/api/knowledge/analytics/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/knowledge/documents/*/reindex").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST,

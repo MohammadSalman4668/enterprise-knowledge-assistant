@@ -58,7 +58,7 @@ function renderResults(res) {
       res.fallbackUsed ? badge('fallback used', 'serious', '↯') : null),
     res.warnings.length ? h('div', { class: 'callout warning' }, res.warnings.map((w) => h('div', {}, `⚠ ${w}`))) : null,
     res.results.length ? h('div', {}, res.results.map((r) => h('div', { class: 'result' },
-      h('a', { class: 'title', href: `#/source/${r.chunkId}?hl=${encodeURIComponent(hl(r))}` }, r.title),
+      h('a', { class: 'title', href: `/source/${r.chunkId}?hl=${encodeURIComponent(hl(r))}` }, r.title),
       h('div', { class: 'meta' },
         badge(r.category), levelBadge(r.accessLevel),
         h('span', { class: 'small muted' }, `v${r.version} · ${r.location} · score ${r.score}`)),

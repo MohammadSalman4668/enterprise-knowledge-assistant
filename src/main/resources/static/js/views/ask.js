@@ -73,7 +73,7 @@ function terms(res) {
 
 function sourceLink(res, ref) {
   const ev = res.evidence.find((e) => e.ref === ref);
-  return ev ? `#/source/${ev.chunkId}?hl=${encodeURIComponent(terms(res))}&ref=${ref}` : null;
+  return ev ? `/source/${ev.chunkId}?hl=${encodeURIComponent(terms(res))}&ref=${ref}` : null;
 }
 
 /** Renders answer text, turning [E1] markers into links to the cited passage. */

@@ -1,4 +1,5 @@
-// App shell: sign-in, hash router, navigation and the model-mode banner.
+// App shell: sign-in, URL router (History API, clean paths like /ask and /login), navigation
+// and the model-mode banner.
 // Framework choice: plain ES modules - no build step, nothing hidden, every line explainable.
 import { api, ApiError, basicToken, session } from './api.js';
 import { h, mount, errorBox, withBusy } from './ui.js';
@@ -41,6 +42,7 @@ function renderLogin(error) {
         try {
           const me = await api('/api/knowledge/me', { auth: tokenValue });
           session.set({ token: tokenValue, username: me.username });
+          history.replaceState(null, '', takeReturnPath());
           await boot();
         } catch (err) {
           mount(errSlot, errorBox(err.status === 401
@@ -75,20 +77,34 @@ function renderChrome() {
 }
 
 const routes = [
-  [/^#\/ask$/, () => renderAsk(app)],
-  [/^#\/search$/, () => renderSearch(app)],
-  [/^#\/documents$/, () => renderDocuments(app)],
-  [/^#\/documents\/(\d+)$/, (m) => renderDocumentDetail(app, Number(m[1]))],
-  [/^#\/source\/(\d+)$/, (m, params) => renderSource(app, Number(m[1]), params)],
-  [/^#\/analytics$/, () => renderAnalytics(app)],
+  [/^\/ask$/, () => renderAsk(app)],
+  [/^\/search$/, () => renderSearch(app)],
+  [/^\/documents$/, () => renderDocuments(app)],
+  [/^\/documents\/(\d+)$/, (m) => renderDocumentDetail(app, Number(m[1]))],
+  [/^\/source\/(\d+)$/, (m, params) => renderSource(app, Number(m[1]), params)],
+  [/^\/analytics$/, () => renderAnalytics(app)],
 ];
+const isAppPath = (path) => path === '/login' || routes.some(([re]) => re.test(path));
+
+/** Changes the URL without reloading and renders the matching screen. */
+function navigate(url, { replace = false } = {}) {
+  if (replace) history.replaceState(null, '', url); else history.pushState(null, '', url);
+  route();
+}
 
 function route() {
-  if (!state.me) return;
-  const [path, query = ''] = (location.hash || '#/ask').split('?');
-  const params = new URLSearchParams(query);
+  if (!state.me) {
+    renderSignedOut();
+    return;
+  }
+  const path = location.pathname;
+  if (path === '/' || path === '/login' || !routes.some(([re]) => re.test(path))) {
+    navigate('/ask', { replace: true });
+    return;
+  }
+  const params = new URLSearchParams(location.search);
   document.querySelectorAll('#nav a').forEach((a) => {
-    a.classList.toggle('active', path.startsWith(`#/${a.dataset.route}`));
+    a.classList.toggle('active', path.startsWith(`/${a.dataset.route}`));
   });
   for (const [re, render] of routes) {
     const m = path.match(re);
@@ -98,12 +114,37 @@ function route() {
       return;
     }
   }
-  location.hash = '#/ask';
+}
+
+const RETURN_KEY = 'ekg.return-path';
+
+/** Shows /login, remembering the page that was asked for so sign-in can return there. */
+function renderSignedOut(error) {
+  const wanted = location.pathname + location.search;
+  if (location.pathname !== '/login') {
+    try {
+      if (isAppPath(location.pathname)) sessionStorage.setItem(RETURN_KEY, wanted);
+    } catch { /* storage unavailable: sign-in returns to /ask */ }
+    history.replaceState(null, '', '/login');
+  }
+  renderLogin(error ?? takeNotice());
+}
+
+function takeReturnPath() {
+  try {
+    const path = sessionStorage.getItem(RETURN_KEY);
+    sessionStorage.removeItem(RETURN_KEY);
+    return path && path.startsWith('/') && !path.startsWith('//') ? path : '/ask';
+  } catch {
+    return '/ask';
+  }
 }
 
 async function boot() {
+  // Old bookmarks such as /#/documents become /documents.
+  if (location.hash.startsWith('#/')) history.replaceState(null, '', location.hash.slice(1));
   if (!session.get()) {
-    renderLogin(takeNotice());
+    renderSignedOut();
     return;
   }
   try {
@@ -114,23 +155,24 @@ async function boot() {
     route();
   } catch (err) {
     session.clear();
-    renderLogin(err.status === 401 ? null : err);
+    state.me = null;
+    renderSignedOut(err.status === 401 ? null : err);
   }
 }
 
 const NOTICE_KEY = 'ekg.signin-notice';
 
 /**
- * Ends the session with a full page reload, so no screen keeps the previous user's data
- * (last question/answer, filters…). The next user always starts on the Ask tab.
+ * Ends the session with a full page load of /login, so no screen keeps the previous user's
+ * data (last question/answer, filters…). The next user starts on the Ask tab.
  */
 function signOut(notice) {
   session.clear();
   try {
     if (notice) sessionStorage.setItem(NOTICE_KEY, notice);
+    sessionStorage.removeItem(RETURN_KEY);
   } catch { /* storage unavailable: the notice is simply not shown */ }
-  history.replaceState(null, '', `${location.pathname}#/ask`);
-  location.reload();
+  location.replace('/login');
 }
 
 function takeNotice() {
@@ -143,6 +185,16 @@ function takeNotice() {
   }
 }
 
-window.addEventListener('hashchange', route);
+// In-app links switch screens without a page reload; new-tab clicks, downloads and API links behave normally.
+document.addEventListener('click', (e) => {
+  const a = e.target.closest('a[href]');
+  if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey
+    || a.target || a.hasAttribute('download')) return;
+  const url = new URL(a.href, location.href);
+  if (url.origin !== location.origin || !isAppPath(url.pathname)) return;
+  e.preventDefault();
+  if (url.pathname + url.search !== location.pathname + location.search) navigate(url.pathname + url.search);
+});
+window.addEventListener('popstate', route);
 window.addEventListener('ekg:unauthorized', () => signOut('Your session has ended. Please sign in again.'));
 boot();

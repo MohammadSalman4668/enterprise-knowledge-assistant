@@ -96,7 +96,7 @@ function renderTable(page, slot) {
     h('div', { class: 'table-wrap' }, h('table', {},
       h('thead', {}, h('tr', {}, ['Title', 'Category', 'Access', 'Version', 'Status', 'Owner', 'Updated', 'Actions'].map((c) => h('th', {}, c)))),
       h('tbody', {}, page.content.map((d) => h('tr', {},
-        h('td', {}, h('a', { href: `#/documents/${d.id}` }, d.title), h('div', { class: 'small muted' }, d.fileName)),
+        h('td', {}, h('a', { href: `/documents/${d.id}` }, d.title), h('div', { class: 'small muted' }, d.fileName)),
         h('td', {}, d.category), h('td', {}, levelBadge(d.accessLevel)), h('td', { class: 'num' }, `v${d.version}`),
         h('td', {}, statusBadge(d.status)), h('td', {}, d.owner), h('td', { class: 'small' }, fmtDate(d.updatedAt)),
         h('td', {}, actions(d, reload))))))),
@@ -178,14 +178,14 @@ export async function renderDocumentDetail(app, id) {
     const d = detail.document;
     mount(app,
       h('div', { class: 'page-head' },
-        h('div', {}, h('a', { href: '#/documents', class: 'small' }, '‹ All documents'), h('h1', {}, d.title),
+        h('div', {}, h('a', { href: '/documents', class: 'small' }, '‹ All documents'), h('h1', {}, d.title),
           h('div', { class: 'row' }, badge(d.category), levelBadge(d.accessLevel), statusBadge(d.status),
             h('span', { class: 'small muted' }, `version ${d.version} · owner ${d.owner} · ${d.fileName} · updated ${fmtDate(d.updatedAt)}`)))),
       detail.pendingRevision ? h('div', { class: 'callout serious' }, `↻ Revision v${detail.pendingRevision} is waiting to be re-indexed. Search and answers still use v${d.version}.`) : null,
       h('div', { class: 'grid grid-2' },
         h('div', { class: 'card' }, h('h2', {}, `Current chunks (${detail.chunkCount})`),
           detail.chunks.length ? h('ul', { class: 'citations' }, detail.chunks.map((c) => h('li', {},
-            h('a', { href: `#/source/${c.chunkId}` }, `Chunk ${c.chunkIndex + 1}`),
+            h('a', { href: `/source/${c.chunkId}` }, `Chunk ${c.chunkIndex + 1}`),
             c.sectionRef ? h('span', { class: 'muted small' }, ` · § ${c.sectionRef}`) : null,
             c.pageNumber ? h('span', { class: 'muted small' }, ` · p. ${c.pageNumber}`) : null,
             h('div', { class: 'small' }, c.preview)))) : empty('No chunks.')),
@@ -197,6 +197,6 @@ export async function renderDocumentDetail(app, id) {
               h('td', {}, v.status === 'CURRENT' ? badge('current', 'good', '●') : v.status === 'PENDING' ? badge('pending', 'warning', '◷') : badge('superseded', '', '▣')),
               h('td', { class: 'small' }, v.fileName), h('td', {}, v.createdBy), h('td', { class: 'small' }, fmtDate(v.createdAt))))))))));
   } catch (err) {
-    mount(app, h('div', { class: 'card' }, h('a', { href: '#/documents' }, '‹ All documents'), errorBox(err)));
+    mount(app, h('div', { class: 'card' }, h('a', { href: '/documents' }, '‹ All documents'), errorBox(err)));
   }
 }

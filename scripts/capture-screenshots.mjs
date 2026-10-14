@@ -57,9 +57,10 @@ await send('Page.enable');
 await send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
 
 let loads = 0;
-async function go(hash) {
+async function go(path) {
   // A different query string forces a full load, so the SPA re-reads its session.
-  await send('Page.navigate', { url: `${BASE}/?load=${++loads}${hash}` });
+  const url = `${BASE}${path || '/login'}`;
+  await send('Page.navigate', { url: `${url}${url.includes('?') ? '&' : '?'}load=${++loads}` });
   await sleep(900);
 }
 async function waitFor(selector, timeout = 8000) {
@@ -90,7 +91,7 @@ async function shot(name, { full = true } = {}) {
   console.log('saved', name);
 }
 async function ask(question, { open = [] } = {}) {
-  await go('#/ask');
+  await go('/ask');
   await waitFor('#question');
   await evaluate(`document.querySelector('#question').value = ${JSON.stringify(question)};
     document.querySelector('form button[type=submit]').click(); true`);
@@ -125,7 +126,7 @@ try {
     f.querySelector('button[type=submit]').click(); await new Promise(r => setTimeout(r, 800)); return true; })()`);
   await shot('07-feedback-saved.png');
 
-  await go('#/search');
+  await go('/search');
   await waitFor('#q');
   await evaluate(`document.querySelector('#q').value = 'carry over unused leave days'; document.querySelector('#category').value = 'HR';
     document.querySelector('form button[type=submit]').click(); true`);
@@ -147,7 +148,7 @@ try {
   await signIn('admin');
   const docs = await apiCall('/api/knowledge/documents?category=Facilities&size=5');
   const parking = docs.body.content.find((d) => d.title === 'Parking Policy');
-  await go('#/documents');
+  await go('/documents');
   await waitFor('tbody tr');
   await evaluate(`document.querySelector('details.card').open = false; true`);
   await shot('10-documents-approval-queue.png', { full: false });
@@ -160,16 +161,16 @@ try {
     fd.append('file', new Blob([${JSON.stringify(readFileSync('docs/samples/parking-policy-v2.md', 'utf8'))}], { type: 'text/markdown' }), 'parking-policy-v2.md');
     await fetch('/api/knowledge/documents/${parking.id}/revisions', { method: 'POST', headers: { Authorization: 'Basic ' + a.token }, body: fd }); return true; })()`);
   await signIn('admin');
-  await go('#/analytics');
+  await go('/analytics');
   await waitFor('.bars');
   await shot('11-analytics.png');
   const current = await apiCall(`/api/knowledge/documents/${parking.id}`);
   await apiCall(`/api/knowledge/documents/${parking.id}/reindex?expectedVersion=${current.body.document.version}`, 'PUT');
-  await go(`#/documents/${parking.id}`);
+  await go(`/documents/${parking.id}`);
   await waitFor('.citations');
   await shot('12-document-versions-after-reindex.png', { full: false });
   if (oldChunk) {
-    await go(`#/source/${oldChunk}?hl=visitor,park,hour`);
+    await go(`/source/${oldChunk}?hl=visitor,park,hour`);
     await waitFor('.content');
     await shot('13-obsolete-version-flagged.png', { full: false });
   }
