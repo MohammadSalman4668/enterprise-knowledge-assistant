@@ -13,7 +13,7 @@ import { state } from './state.js';
 
 const DEMO_USERS = [
   ['employee', 'Employee', 'public + internal'],
-  ['hr', 'HR', '+ restricted HR data'],
+  ['hr', 'HR', 'public + internal + restricted'],
   ['admin', 'Admin', 'everything incl. confidential, approvals'],
 ];
 
