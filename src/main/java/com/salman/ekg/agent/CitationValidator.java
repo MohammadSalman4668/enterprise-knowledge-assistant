@@ -32,6 +32,9 @@ public class CitationValidator {
     private static final Pattern CITATION = Pattern.compile("\\[(E\\d+)]");
     private static final Pattern NUMBER = Pattern.compile("\\d[\\d,]*(?:\\.\\d+)?");
     private static final Pattern TRAILING_CITATIONS = Pattern.compile("([.!?])\\s*((?:\\[E\\d+]\\s*)+)");
+    /** Models write citation lists in several styles: "[E2, E3]", "[E2; E3]", "[e2]". */
+    private static final Pattern CITATION_GROUP = Pattern.compile("(?i)\\[\\s*(E\\d+(?:\\s*[,;]\\s*E\\d+)*)\\s*]");
+    private static final Pattern INSUFFICIENT = Pattern.compile("(?i)insufficient[_\\s]evidence");
     private static final double MIN_SUPPORT = 0.6;
 
     public ValidationResult validate(String body, Map<String, EvidenceItem> evidenceByRef) {
@@ -41,14 +44,17 @@ public class CitationValidator {
         if (body == null || body.isBlank()) {
             return new ValidationResult("", List.of(), List.of("EMPTY_ANSWER"));
         }
+        // "[E2, E3]" / "[e2]" -> "[E2][E3]" / "[E2]"
+        String grouped = CITATION_GROUP.matcher(body).replaceAll(m -> java.util.Arrays.stream(m.group(1).split("\\s*[,;]\\s*"))
+                .map(r -> "[" + r.strip().toUpperCase() + "]").reduce("", String::concat));
         // "...per night. [E1]" -> "...per night [E1]." so citations stay with their sentence
-        String normalized = TRAILING_CITATIONS.matcher(body).replaceAll(m -> " " + m.group(2).strip() + m.group(1) + " ");
+        String normalized = TRAILING_CITATIONS.matcher(grouped).replaceAll(m -> " " + m.group(2).strip() + m.group(1) + " ");
         for (String sentence : TextAnalysis.sentences(normalized)) {
             String plain = CITATION.matcher(sentence).replaceAll("").replaceAll("\\s+([.!?,;:])", "$1").strip();
             if (plain.chars().noneMatch(Character::isLetterOrDigit)) {
                 continue;
             }
-            if (plain.contains("INSUFFICIENT_EVIDENCE")) {
+            if (INSUFFICIENT.matcher(plain).find()) {
                 issues.add("MODEL_REPORTED_INSUFFICIENT_EVIDENCE: " + abbreviate(plain));
                 continue;
             }

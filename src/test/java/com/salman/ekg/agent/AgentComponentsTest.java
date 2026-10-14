@@ -124,6 +124,27 @@ class AgentComponentsTest {
         }
 
         @Test
+        @DisplayName("Regression: citation lists like [E1, E2] and lower-case refs are accepted (seen from qwen2.5)")
+        void acceptsCitationListStyles() {
+            Map<String, EvidenceItem> two = Map.of(
+                    "E1", evidence("E1", 1, "Annual Leave Policy", "Full-time employees receive 25 days of paid annual leave."),
+                    "E2", evidence("E2", 2, "Leave FAQ", "Annual leave of 25 days is granted to full-time employees."));
+            ValidationResult r = validator.validate("Full-time employees receive 25 days of paid annual leave [E1, E2].", two);
+            assertThat(r.issues()).isEmpty();
+            assertThat(r.usedRefs()).containsExactly("E1", "E2");
+            assertThat(r.text()).isEqualTo("Full-time employees receive 25 days of paid annual leave [E1][E2].");
+            assertThat(validator.validate("Employees receive 25 days of annual leave [e1].", two).usedRefs()).containsExactly("E1");
+        }
+
+        @Test
+        @DisplayName("Regression: the insufficient-evidence marker is recognised in any letter case")
+        void insufficientEvidenceAnyCase() {
+            ValidationResult r = validator.validate("INSUFFICIENT_Evidence.", evidence);
+            assertThat(r.text()).isEmpty();
+            assertThat(r.issues()).singleElement().asString().startsWith("MODEL_REPORTED_INSUFFICIENT_EVIDENCE");
+        }
+
+        @Test
         void dropsUncitedUnknownUnsupportedAndInventedNumbers() {
             ValidationResult r = validator.validate(
                     "Leave is generous. Staff get 25 days of leave [E7]. Employees receive 30 days of annual leave [E1]. "
