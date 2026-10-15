@@ -1,23 +1,26 @@
 // Regenerates docs/screenshots/*.png by driving headless Edge/Chrome over the DevTools protocol.
 // No npm dependencies (Node 22+ has fetch and WebSocket built in).
 //
-// Usage (app running on BASE_URL, demo password in the environment, tests already run once):
-//   PowerShell:  $env:EKG_DEMO_PASSWORD="..."; node scripts/capture-screenshots.mjs
+// Usage (app running on BASE_URL, tests already run once). Needs three APPROVED accounts - the bootstrap
+// admin plus an HR and an Employee account created through /signup - given as EMAIL:PASSWORD pairs:
+//   PowerShell:  $env:EKG_ADMIN="admin@x.com:..."; $env:EKG_HR="hr@x.com:..."; $env:EKG_EMPLOYEE="emp@x.com:..."
+//                node scripts/capture-screenshots.mjs
+// Note: the lifecycle steps upload and re-index a sample "Parking Policy" document in that database.
 //
-// Env: BASE_URL (default http://localhost:8095), BROWSER_PATH, OUT_DIR (default docs/screenshots)
+// Env: BASE_URL (default http://localhost:8080), BROWSER_PATH, OUT_DIR (default docs/screenshots)
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const BASE = process.env.BASE_URL || 'http://localhost:8095';
-const PASSWORD = process.env.EKG_DEMO_PASSWORD;
+const BASE = process.env.BASE_URL || 'http://localhost:8080';
+const ACCOUNTS = { admin: process.env.EKG_ADMIN, hr: process.env.EKG_HR, employee: process.env.EKG_EMPLOYEE };
 const OUT = process.env.OUT_DIR || 'docs/screenshots';
 const BROWSER = process.env.BROWSER_PATH || [
   'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
   'C:/Program Files/Google/Chrome/Application/chrome.exe',
 ].find((p) => existsSync(p));
-if (!PASSWORD) throw new Error('Set EKG_DEMO_PASSWORD');
+for (const [role, v] of Object.entries(ACCOUNTS)) if (!v || !v.includes(':')) throw new Error(`Set EKG_${role.toUpperCase()}=email:password`);
 if (!BROWSER) throw new Error('No Edge/Chrome found; set BROWSER_PATH');
 mkdirSync(OUT, { recursive: true });
 
@@ -68,9 +71,11 @@ async function waitFor(selector, timeout = 8000) {
     if (document.querySelector(${JSON.stringify(selector)})) return true; await new Promise(r => setTimeout(r, 100)); } return false; })()`);
   if (!ok) throw new Error(`Timed out waiting for ${selector}`);
 }
-async function signIn(user) {
+async function signIn(role) {
+  const [email, ...rest] = ACCOUNTS[role].split(':');
+  const pair = `${email.trim().toLowerCase()}:${rest.join(':')}`;
   await go('');
-  await evaluate(`sessionStorage.setItem('ekg.auth', JSON.stringify({ token: btoa(${JSON.stringify(`${user}:${PASSWORD}`)}), username: '${user}' })); true`);
+  await evaluate(`sessionStorage.setItem('ekg.auth', JSON.stringify({ token: btoa(${JSON.stringify(pair)}), username: ${JSON.stringify(email.trim().toLowerCase())} })); true`);
 }
 const signOut = () => evaluate(`sessionStorage.clear(); true`);
 async function apiCall(path, method = 'GET', body) {
@@ -90,14 +95,15 @@ async function shot(name, { full = true } = {}) {
   writeFileSync(join(OUT, name), Buffer.from(r.data, 'base64'));
   console.log('saved', name);
 }
-async function ask(question, { open = [] } = {}) {
+const openTab = (label) => evaluate(`[...document.querySelectorAll('#answer [role=tab]')]
+  .find(t => t.textContent.startsWith(${JSON.stringify(label)}))?.click(); true`);
+async function ask(question, { tab = '' } = {}) {
   await go('/ask');
   await waitFor('#question');
   await evaluate(`document.querySelector('#question').value = ${JSON.stringify(question)};
     document.querySelector('form button[type=submit]').click(); true`);
   await waitFor('#answer .answer-text');
-  await evaluate(`[...document.querySelectorAll('#answer details')].forEach(d => {
-    const t = d.querySelector('summary').textContent; d.open = ${JSON.stringify(open)}.some(o => t.startsWith(o)) || !!d.querySelector('.stars'); }); true`);
+  if (tab) await openTab(tab);
 }
 
 try {
@@ -105,20 +111,20 @@ try {
   await go('');
   await signOut();
   await go('');
-  await waitFor('.login');
+  await waitFor('.auth-form');
   await shot('01-sign-in.png', { full: false });
 
   // ---- Employee
   await signIn('employee');
   await ask('How many annual leave days do I get and how do I reset my VPN token?');
   await shot('02-ask-answer-with-citations.png');
-  await evaluate(`[...document.querySelectorAll('#answer details')].forEach(d => d.open = true); true`);
+  await openTab('Agent trace');
   await shot('03-agent-evidence-and-trace.png');
   await ask('What is the hotel cap per night?');
   await shot('04-conflicting-sources.png');
-  await ask('What are the salary bands for L5 engineers?', { open: ['Goals'] });
+  await ask('What are the salary bands for L5 engineers?', { tab: 'Evidence check' });
   await shot('05-restricted-question-abstains.png');
-  await ask('How many days per week can I work remotely?', { open: ['Evidence'] });
+  await ask('How many days per week can I work remotely?', { tab: 'Evidence' });
   await shot('06-prompt-injection-neutralised.png');
   await ask('How do I reset my VPN token?');
   await evaluate(`(async () => { const f = document.querySelector('#answer form'); f.querySelector('input[value="5"]').click();
@@ -133,7 +139,7 @@ try {
   await waitFor('.result');
   await shot('08-search-with-filters.png');
   await evaluate(`document.querySelector('.result a.title').click(); true`);
-  await waitFor('.content');
+  await waitFor('.doc-text');
   await shot('09-source-preview.png', { full: false });
 
   // ---- Lifecycle: HR uploads (pending) → admin queue → approve → revision → re-index → obsolete chunk
@@ -150,7 +156,6 @@ try {
   const parking = docs.body.content.find((d) => d.title === 'Parking Policy');
   await go('/documents');
   await waitFor('tbody tr');
-  await evaluate(`document.querySelector('details.card').open = false; true`);
   await shot('10-documents-approval-queue.png', { full: false });
   if (parking.status === 'PENDING_APPROVAL') await apiCall(`/api/knowledge/documents/${parking.id}/approve`, 'POST');
 
@@ -167,11 +172,11 @@ try {
   const current = await apiCall(`/api/knowledge/documents/${parking.id}`);
   await apiCall(`/api/knowledge/documents/${parking.id}/reindex?expectedVersion=${current.body.document.version}`, 'PUT');
   await go(`/documents/${parking.id}`);
-  await waitFor('.citations');
+  await waitFor('.sources');
   await shot('12-document-versions-after-reindex.png', { full: false });
   if (oldChunk) {
     await go(`/source/${oldChunk}?hl=visitor,park,hour`);
-    await waitFor('.content');
+    await waitFor('.doc-text');
     await shot('13-obsolete-version-flagged.png', { full: false });
   }
 

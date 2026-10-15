@@ -1,12 +1,13 @@
 // Search screen: keyword search with metadata filters; results respect the caller's access level.
 import { api } from '../api.js';
 import {
-  h, mount, loading, errorBox, empty, badge, levelBadge, highlight, withBusy, categoryList, select, LEVELS,
+  h, mount, errorBox, badge, levelBadge, highlight, withBusy, categoryList, select, LEVELS,
+  icon, pageHeader, callout, skeleton, emptyState,
 } from '../ui.js';
 import { state } from '../state.js';
 
 export function renderSearch(app) {
-  const query = h('input', { id: 'q', type: 'search', maxlength: 500, placeholder: 'e.g. carry over leave, VPN token, rollback' });
+  const query = h('input', { id: 'q', type: 'search', maxlength: 500, 'aria-label': 'Search terms', placeholder: 'e.g. carry over leave, VPN token, rollback' });
   const category = h('input', { id: 'category', list: 'cat-list', placeholder: 'Any', maxlength: 64 });
   const level = select('level', state.me.readableLevels.length ? LEVELS.filter((l) => state.me.readableLevels.includes(l)) : LEVELS, { blank: 'Any I can read' });
   const limit = select('limit', ['5', '10', '20'], { value: '10' });
@@ -15,13 +16,15 @@ export function renderSearch(app) {
 
   const form = h('form', {
     class: 'card',
+    role: 'search',
     onsubmit: async (e) => {
       e.preventDefault();
       if (!query.value.trim()) {
-        mount(results, errorBox({ code: 'VALIDATION_FAILED', message: 'Enter something to search for.' }));
+        mount(results, h('div', { class: 'results-head' }), errorBox({ code: 'VALIDATION_FAILED', message: 'Enter something to search for.' }));
         return;
       }
-      mount(results, h('div', { class: 'card' }, loading('Searching…')));
+      mount(results, h('div', { class: 'results-head' }, h('span', { class: 'loading' }, h('span', { class: 'spinner' }), 'Searching…')),
+        h('div', { class: 'card' }, skeleton(5)));
       await withBusy(submit, 'Searching…', async () => {
         try {
           const res = await api('/api/knowledge/search', {
@@ -30,21 +33,21 @@ export function renderSearch(app) {
           });
           mount(results, renderResults(res));
         } catch (err) {
-          mount(results, h('div', { class: 'card' }, errorBox(err)));
+          mount(results, h('div', { class: 'results-head' }), errorBox(err));
         }
       });
     },
   },
-  h('div', { class: 'field' }, h('label', { for: 'q' }, 'Search terms'), query),
-  h('div', { class: 'fields' },
+  h('div', { class: 'search-bar' },
+    h('div', { class: 'input-icon' }, icon('search', 16), query),
+    submit),
+  h('div', { class: 'filters' },
     h('div', { class: 'field' }, h('label', { for: 'category' }, 'Category'), category, categoryList('cat-list')),
     h('div', { class: 'field' }, h('label', { for: 'level' }, 'Access level'), level),
-    h('div', { class: 'field' }, h('label', { for: 'limit' }, 'Max results'), limit)),
-  h('div', { class: 'row' }, h('div', { class: 'spacer' }), submit));
+    h('div', { class: 'field' }, h('label', { for: 'limit' }, 'Max results'), limit)));
 
   mount(app,
-    h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, 'Search'),
-      h('p', { class: 'muted' }, 'Full-text search over current, approved documents you can access.'))),
+    pageHeader({ title: 'Search', description: 'Full-text search over current, approved documents you can access.' }),
     form, results);
   query.focus();
 }
@@ -60,17 +63,18 @@ function matchBadge(r) {
 
 function renderResults(res) {
   const hl = (r) => r.matchedTerms.join(',');
-  return h('div', { class: 'card' },
-    h('div', { class: 'row' },
-      h('strong', {}, `${res.total} result${res.total === 1 ? '' : 's'}`),
+  return h('section', { 'aria-label': 'Search results' },
+    h('div', { class: 'results-head' },
+      h('h2', {}, `${res.total} result${res.total === 1 ? '' : 's'}`),
       badge(`retrieval: ${res.retrievalMode.toLowerCase()}`),
       res.fallbackUsed ? badge('fallback used', 'serious', '↯') : null),
-    res.warnings.length ? h('div', { class: 'callout warning' }, res.warnings.map((w) => h('div', {}, `⚠ ${w}`))) : null,
-    res.results.length ? h('div', {}, res.results.map((r) => h('div', { class: 'result' },
-      h('a', { class: 'title', href: `/source/${r.chunkId}?hl=${encodeURIComponent(hl(r))}` }, r.title),
-      h('div', { class: 'meta' },
-        badge(r.category), levelBadge(r.accessLevel), matchBadge(r),
-        h('span', { class: 'small muted' }, `v${r.version} · ${r.location} · score ${r.score}`)),
-      h('div', {}, highlight(r.snippet, r.matchedTerms)))))
-      : empty('No matching passages in documents you can access. Try other words or remove filters.'));
+    res.warnings.length ? callout('warning', res.warnings.map((w) => h('div', {}, w))) : null,
+    h('div', { class: 'card card-flush' },
+      res.results.length ? res.results.map((r) => h('div', { class: 'result' },
+        h('a', { class: 'title', href: `/source/${r.chunkId}?hl=${encodeURIComponent(hl(r))}` }, r.title),
+        h('div', { class: 'meta' },
+          badge(r.category), levelBadge(r.accessLevel), matchBadge(r),
+          h('span', { class: 'small subtle' }, `v${r.version} · ${r.location} · score ${r.score}`)),
+        h('div', { class: 'snippet' }, highlight(r.snippet, r.matchedTerms))))
+        : emptyState('No matching passages', 'Nothing in the documents you can access matches. Try other words or remove filters.', 'search')));
 }

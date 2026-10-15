@@ -3,29 +3,48 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
   <title>Knowledge Assistant</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/css/app.css">
 </head>
 <body>
-  <header class="topbar" id="topbar" hidden>
-    <a class="brand" href="/ask" title="Home (Ask)">
-      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M4 4h10a4 4 0 0 1 4 4v12H8a4 4 0 0 1-4-4V4zm2 2v10a2 2 0 0 0 2 2h8V8a2 2 0 0 0-2-2H6z"/></svg>
-      <span>Knowledge Assistant</span>
-    </a>
-    <nav class="tabs" id="nav" aria-label="Main">
-      <a href="/ask" data-route="ask">Ask</a>
-      <a href="/search" data-route="search">Search</a>
-      <a href="/documents" data-route="documents">Documents</a>
-      <a href="/approvals" data-route="approvals" data-approver hidden>Approvals</a>
-      <a href="/analytics" data-route="analytics" data-admin hidden>Analytics</a>
-    </nav>
-    <div class="user" id="user-box"></div>
-  </header>
-
-  <div class="mode-banner" id="mode-banner" hidden role="status"></div>
-
-  <main id="app" class="container" tabindex="-1"></main>
+  <a class="skip-link" href="#app">Skip to content</a>
+  <div class="layout signed-out" id="layout">
+    <aside class="sidebar" id="sidebar" aria-label="Sidebar">
+      <a class="brand" href="/ask" title="Home (Ask)">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M4 4h10a4 4 0 0 1 4 4v12H8a4 4 0 0 1-4-4V4zm2 2v10a2 2 0 0 0 2 2h8V8a2 2 0 0 0-2-2H6z"/></svg>
+        </span>
+        <span>Knowledge Assistant<small>Enterprise knowledge base</small></span>
+      </a>
+      <div class="nav-label">Workspace</div>
+      <nav class="nav" id="nav" aria-label="Main">
+        <a href="/ask" data-route="ask" data-icon="sparkle">Ask</a>
+        <a href="/search" data-route="search" data-icon="search">Search</a>
+        <a href="/documents" data-route="documents" data-icon="file">Documents</a>
+        <a href="/approvals" data-route="approvals" data-icon="userCheck" data-approver hidden>Approvals</a>
+        <a href="/analytics" data-route="analytics" data-icon="chart" data-admin hidden>Analytics</a>
+      </nav>
+      <div class="sidebar-foot">
+        <div id="mode-banner" class="model-status" role="status" hidden></div>
+        <div id="user-box" class="user-card"></div>
+      </div>
+    </aside>
+    <div class="scrim" id="scrim"></div>
+    <div class="main">
+      <header class="mobile-bar" id="mobile-bar">
+        <button class="ghost icon-only" id="nav-toggle" type="button" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false"></button>
+        <a class="brand" href="/ask">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M4 4h10a4 4 0 0 1 4 4v12H8a4 4 0 0 1-4-4V4zm2 2v10a2 2 0 0 0 2 2h8V8a2 2 0 0 0-2-2H6z"/></svg>
+          </span>
+          <span>Knowledge Assistant</span>
+        </a>
+      </header>
+      <main id="app" class="page" tabindex="-1"></main>
+    </div>
+  </div>
 
   <div id="toasts" class="toasts" aria-live="polite"></div>
   <div id="tooltip" class="tooltip" role="tooltip" hidden></div>

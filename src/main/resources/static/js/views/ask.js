@@ -1,7 +1,8 @@
 // Ask screen: question → agent run → answer with citations, evidence, trace and feedback form.
 import { api } from '../api.js';
 import {
-  h, mount, loading, errorBox, outcomeBadge, badge, levelBadge, withBusy, toast, categoryList,
+  h, mount, errorBox, outcomeBadge, badge, levelBadge, withBusy, toast, categoryList,
+  icon, pageHeader, callout, skeleton, tabs, emptyState,
 } from '../ui.js';
 
 const EXAMPLES = [
@@ -14,20 +15,22 @@ const EXAMPLES = [
 let lastResult = null;
 
 export function renderAsk(app) {
-  const question = h('textarea', { id: 'question', maxlength: 1000, required: true, placeholder: 'Ask a question about policies, runbooks or FAQs…' });
-  const category = h('input', { id: 'category', list: 'cat-list', placeholder: 'Any', maxlength: 64 });
-  const submit = h('button', { class: 'primary', type: 'submit' }, 'Ask');
+  const question = h('textarea', { id: 'question', maxlength: 1000, required: true, rows: 3, 'aria-label': 'Your question', placeholder: 'Ask a question about policies, runbooks or FAQs…' });
+  const category = h('input', { id: 'category', list: 'cat-list', placeholder: 'Any category', maxlength: 64, 'aria-label': 'Limit to category (optional)' });
+  const submit = h('button', { class: 'primary', type: 'submit' }, 'Ask', icon('arrowRight', 15));
   const result = h('div', { id: 'answer' });
 
   const form = h('form', {
-    class: 'card',
+    class: 'card composer',
     onsubmit: async (e) => {
       e.preventDefault();
       if (!question.value.trim()) {
-        mount(result, errorBox({ code: 'VALIDATION_FAILED', message: 'Please enter a question.' }));
+        mount(result, h('div', { class: 'answer' }, errorBox({ code: 'VALIDATION_FAILED', message: 'Please enter a question.' })));
         return;
       }
-      mount(result, h('div', { class: 'card' }, loading('Researching: planning → searching → reading evidence → validating citations…')));
+      mount(result, h('div', { class: 'card answer' },
+        h('div', { class: 'loading' }, h('span', { class: 'spinner' }), 'Researching: planning → searching → reading evidence → validating citations…'),
+        skeleton(4)));
       await withBusy(submit, 'Researching…', async () => {
         try {
           lastResult = await api('/api/knowledge/ask', {
@@ -35,19 +38,16 @@ export function renderAsk(app) {
           });
           mount(result, renderAnswer(lastResult));
         } catch (err) {
-          mount(result, h('div', { class: 'card' }, errorBox(err)));
+          mount(result, h('div', { class: 'answer' }, errorBox(err)));
         }
       });
     },
   },
-  h('div', { class: 'field' }, h('label', { for: 'question' }, 'Your question'), question),
-  h('div', { class: 'row' },
-    h('div', { class: 'field', style: 'min-width:180px' }, h('label', { for: 'category' }, 'Limit to category (optional)'), category, categoryList('cat-list')),
-    h('div', { class: 'spacer' }), submit),
-  h('div', { class: 'small muted' }, 'Try:'),
-  h('div', { class: 'chips' }, EXAMPLES.map((q) => h('button', {
-    type: 'button', class: 'chip', onclick: () => { question.value = q; question.focus(); },
-  }, q))));
+  question,
+  h('div', { class: 'composer-bar' },
+    h('div', { class: 'input-icon' }, icon('filter', 14), category, categoryList('cat-list')),
+    h('span', { class: 'spacer' }),
+    submit));
 
   // Enter asks (same as clicking Ask); Shift+Enter inserts a new line.
   question.addEventListener('keydown', (e) => {
@@ -58,13 +58,22 @@ export function renderAsk(app) {
   });
 
   mount(app,
-    h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, 'Ask the knowledge base'),
-      h('p', { class: 'muted' }, 'Answers are grounded in documents you are allowed to read, with citations you can open.'))),
-    form, result);
+    pageHeader({
+      title: 'Ask the knowledge base',
+      description: 'Answers are grounded in documents you are allowed to read, with citations you can open.',
+    }),
+    form,
+    h('div', { class: 'examples' },
+      h('span', { class: 'subtle' }, 'Try'),
+      EXAMPLES.map((q) => h('button', {
+        type: 'button', class: 'chip', onclick: () => { question.value = q; question.focus(); },
+      }, q))),
+    result);
   if (lastResult) {
     question.value = lastResult.question;
     mount(result, renderAnswer(lastResult));
   }
+  question.focus({ preventScroll: true });
 }
 
 function terms(res) {
@@ -93,31 +102,33 @@ function answerText(res) {
 }
 
 export function renderAnswer(res) {
-  const card = h('div', { class: 'card' },
-    h('div', { class: 'row' },
+  const card = h('article', { class: 'card answer', 'aria-label': 'Answer' },
+    h('div', { class: 'answer-head' },
       outcomeBadge(res.outcome),
       res.mode === 'SIMULATED' ? badge('Simulated agent', 'warning', '⚙') : badge(`Live · ${res.model}`, 'good', '✦'),
       res.degraded ? badge('Degraded: fallback used', 'serious', '↯') : null,
       badge(`retrieval: ${res.retrievalMode.toLowerCase()}`),
-      h('span', { class: 'spacer' }),
-      h('span', { class: 'small muted' }, `${res.toolCalls} tool calls · ${res.latencyMs} ms · answer #${res.answerId}`)),
+      h('span', { class: 'answer-meta' }, `${res.toolCalls} tool calls · ${res.latencyMs} ms · answer #${res.answerId}`)),
     answerText(res),
-    res.warnings.length ? h('div', { class: 'callout warning' }, res.warnings.map((w) => h('div', {}, `⚠ ${w}`))) : null,
-    res.conflicts.length ? h('div', { class: 'callout serious' },
+    res.warnings.length ? callout('warning', res.warnings.map((w) => h('div', {}, w))) : null,
+    res.conflicts.length ? callout('serious',
       h('strong', {}, 'Conflicting evidence'),
       res.conflicts.map((c) => h('div', {}, `${c.quantity}: `,
         c.facts.map((f, i) => [i ? ' vs ' : '', `${f.documentTitle} says ${f.value} `,
           h('a', { class: 'cite', href: sourceLink(res, f.ref) }, f.ref)])))) : null,
-    res.citations.length ? h('div', {},
-      h('h3', {}, 'Sources'),
-      h('ul', { class: 'citations' }, res.citations.map((c) => h('li', {},
-        h('a', { class: 'cite', href: sourceLink(res, c.ref) }, c.ref), ' ',
-        h('a', { href: sourceLink(res, c.ref) }, c.title), ' ',
-        h('span', { class: 'muted small' }, `· v${c.version} · ${c.location}`))))) : null,
+    res.citations.length ? h('section', {},
+      h('h3', { class: 'section-title' }, 'Sources'),
+      h('ul', { class: 'sources' }, res.citations.map((c) => h('li', { class: 'source-row' },
+        h('a', { class: 'cite', href: sourceLink(res, c.ref), 'aria-label': `Citation ${c.ref}` }, c.ref),
+        h('span', { class: 'source-text' },
+          h('a', { class: 'source-title', href: sourceLink(res, c.ref) }, c.title),
+          h('span', { class: 'source-loc' }, `v${c.version} · ${c.location}`)))))) : null,
     feedbackForm(res),
-    evidencePanel(res),
-    gatePanel(res),
-    tracePanel(res));
+    tabs([
+      { label: 'Evidence', count: res.evidence.length, render: () => evidencePanel(res) },
+      { label: 'Evidence check', count: res.subQuestions.length, render: () => gatePanel(res) },
+      { label: 'Agent trace', count: res.trace.length, render: () => tracePanel(res) },
+    ], { label: 'Answer details' }));
   return card;
 }
 
@@ -127,7 +138,7 @@ function feedbackForm(res) {
     const id = `star-${res.answerId}-${n}`;
     const label = h('label', { for: id, title: `${n} star${n > 1 ? 's' : ''}` }, '★');
     const input = h('input', {
-      type: 'radio', name: 'rating', id, value: n,
+      type: 'radio', name: 'rating', id, value: n, 'aria-label': `${n} star${n > 1 ? 's' : ''}`,
       onchange: () => {
         rating = n;
         stars.forEach(([, l], i) => l.classList.toggle('on', i < n));
@@ -143,6 +154,8 @@ function feedbackForm(res) {
   const status = h('div', {});
   const submit = h('button', { type: 'submit', class: 'primary' }, 'Send feedback');
   const form = h('form', {
+    class: 'feedback',
+    'aria-label': 'Rate this answer',
     onsubmit: async (e) => {
       e.preventDefault();
       if (!rating) {
@@ -162,62 +175,59 @@ function feedbackForm(res) {
       });
       // Disable only after withBusy has restored the button, otherwise it would be re-enabled.
       if (saved) {
-        mount(status, h('div', { class: 'callout info' }, `✓ Thanks! Feedback #${saved.id} saved${saved.documentTitle ? ` for “${saved.documentTitle}”` : ''}.`));
+        mount(status, callout('good', `Thanks! Feedback #${saved.id} saved${saved.documentTitle ? ` for “${saved.documentTitle}”` : ''}.`));
         form.querySelectorAll('input,select,textarea,button').forEach((el) => { el.disabled = true; });
         toast('Feedback saved');
       }
     },
   },
-  h('details', { open: true },
-    h('summary', {}, 'Rate this answer'),
-    h('div', { class: 'stars', role: 'radiogroup', 'aria-label': 'Rating' }, stars),
-    h('div', { class: 'fields' },
-      h('div', { class: 'field' }, h('label', { for: docSelect.id }, 'About document'), docSelect),
-      h('div', { class: 'field' }, h('label', { for: comment.id }, 'Comment'), comment)),
-    status, submit));
+  h('div', { class: 'feedback-head' },
+    h('h3', {}, 'Rate this answer'),
+    h('div', { class: 'stars', role: 'radiogroup', 'aria-label': 'Rating' }, stars)),
+  h('div', { class: 'fields' },
+    h('div', { class: 'field' }, h('label', { for: docSelect.id }, 'About document'), docSelect),
+    h('div', { class: 'field' }, h('label', { for: comment.id }, 'Comment'), comment)),
+  status,
+  h('div', { class: 'form-actions' }, submit));
   return form;
 }
 
 function evidencePanel(res) {
-  return h('details', {},
-    h('summary', {}, `Evidence the agent read (${res.evidence.length})`),
-    res.evidence.length ? res.evidence.map((e) => h('div', { class: 'evidence' },
+  return res.evidence.length
+    ? h('div', {}, res.evidence.map((e) => h('div', { class: 'evidence' },
       h('div', { class: 'row' },
         h('a', { class: 'cite', href: sourceLink(res, e.ref) }, e.ref),
         h('strong', {}, e.title), levelBadge(e.accessLevel),
-        h('span', { class: 'small muted' }, `v${e.version} · ${e.location} · score ${e.score}`),
         e.cited ? badge('cited', 'good', '✓') : badge('not cited'),
         e.injectionFlags.length ? badge(`injection neutralised: ${e.injectionFlags.join(', ')}`, 'critical', '⛨') : null),
-      h('pre', {}, e.text)))
-      : h('p', { class: 'muted' }, 'No passages were read: nothing relevant was found among the documents you can access.'));
+      h('div', { class: 'cell-sub' }, `v${e.version} · ${e.location} · score ${e.score}`),
+      h('pre', {}, e.text))))
+    : emptyState('No passages were read', 'Nothing relevant was found among the documents you can access.', 'search');
 }
 
 function gatePanel(res) {
-  return h('details', {},
-    h('summary', {}, 'Goals and evidence check'),
-    h('div', { class: 'table-wrap' }, h('table', {},
+  return h('div', {},
+    h('div', { class: 'card card-flush' }, h('div', { class: 'table-wrap' }, h('table', {},
       h('thead', {}, h('tr', {}, h('th', {}, '#'), h('th', {}, 'Sub-question'), h('th', {}, 'Key terms'),
         h('th', { class: 'num' }, 'Word coverage'), h('th', { class: 'num' }, 'Meaning similarity'), h('th', {}, 'Supported by'))),
       h('tbody', {}, res.subQuestions.map((s) => h('tr', {},
         h('td', {}, s.index + 1), h('td', {}, s.text), h('td', { class: 'mono' }, s.keyTerms.join(', ')),
         h('td', { class: 'num' }, s.bestCoverage),
         h('td', { class: 'num' }, s.bestSimilarity == null ? '-' : s.bestSimilarity),
-        h('td', {}, s.supported ? s.supportingRefs.join(', ') : badge('insufficient', 'warning', '!'))))))),
+        h('td', {}, s.supported ? s.supportingRefs.join(', ') : badge('insufficient', 'warning', '!')))))))),
     res.validationIssues.length
-      ? h('div', { class: 'callout warning' }, h('strong', {}, 'Validation corrections'), res.validationIssues.map((i) => h('div', { class: 'small' }, i)))
-      : h('p', { class: 'small muted' }, '✓ Every sentence is cited and supported by its evidence.'));
+      ? callout('warning', h('strong', {}, 'Validation corrections'), res.validationIssues.map((i) => h('div', { class: 'small' }, i)))
+      : callout('good', 'Every sentence is cited and supported by its evidence.'));
 }
 
 function tracePanel(res) {
-  return h('details', {},
-    h('summary', {}, `Agent trace (${res.trace.length} steps)`),
-    h('div', { class: 'table-wrap' }, h('table', {},
-      h('thead', {}, h('tr', {}, h('th', {}, 'Step'), h('th', {}, 'Phase'), h('th', {}, 'Tool / input'),
-        h('th', {}, 'Status'), h('th', {}, 'Detail'), h('th', { class: 'num' }, 'ms'))),
-      h('tbody', {}, res.trace.map((t) => h('tr', {},
-        h('td', {}, t.step), h('td', {}, t.phase),
-        h('td', { class: 'mono' }, t.tool ? `${t.tool}(${JSON.stringify(t.input)})` : (Object.keys(t.input || {}).length ? JSON.stringify(t.input) : '')),
-        h('td', {}, t.status === 'OK' ? badge('ok', 'good', '✓')
-          : t.status === 'DENIED' ? badge('denied', 'critical', '✕') : badge(t.status.toLowerCase(), 'warning', '!')),
-        h('td', { class: 'small' }, t.detail), h('td', { class: 'num' }, t.durationMs)))))));
+  return h('div', { class: 'card card-flush' }, h('div', { class: 'table-wrap' }, h('table', {},
+    h('thead', {}, h('tr', {}, h('th', {}, 'Step'), h('th', {}, 'Phase'), h('th', {}, 'Tool / input'),
+      h('th', {}, 'Status'), h('th', {}, 'Detail'), h('th', { class: 'num' }, 'ms'))),
+    h('tbody', {}, res.trace.map((t) => h('tr', {},
+      h('td', {}, t.step), h('td', {}, t.phase),
+      h('td', { class: 'mono' }, t.tool ? `${t.tool}(${JSON.stringify(t.input)})` : (Object.keys(t.input || {}).length ? JSON.stringify(t.input) : '')),
+      h('td', {}, t.status === 'OK' ? badge('ok', 'good', '✓')
+        : t.status === 'DENIED' ? badge('denied', 'critical', '✕') : badge(t.status.toLowerCase(), 'warning', '!')),
+      h('td', { class: 'small' }, t.detail), h('td', { class: 'num' }, t.durationMs)))))));
 }

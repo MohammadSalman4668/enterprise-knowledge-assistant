@@ -2,15 +2,16 @@
 // Charts are single-series magnitude bars (one hue, no legend needed: the title names the series),
 // each with hover tooltips and a table view so values never depend on reading colour or length alone.
 import { api } from '../api.js';
-import { h, mount, loading, errorBox, empty, fmtDate, select } from '../ui.js';
+import { h, mount, errorBox, empty, fmtDate, select, pageHeader, skeleton } from '../ui.js';
 import { state } from '../state.js';
 
 export async function renderAnalytics(app) {
   if (!state.me.admin) {
-    mount(app, h('div', { class: 'card' }, errorBox({ code: 'FORBIDDEN', message: 'Analytics are available to admins only.' })));
+    mount(app, pageHeader({ title: 'Analytics' }), errorBox({ code: 'FORBIDDEN', message: 'Analytics are available to admins only.' }));
     return;
   }
-  mount(app, loading('Loading analytics…'));
+  mount(app, pageHeader({ title: 'Search & feedback analytics', description: 'Loading analytics…' }),
+    h('div', { class: 'tiles' }, Array.from({ length: 4 }, () => h('div', { class: 'tile' }, skeleton(2)))));
   try {
     const [summary, byCatStatus, queue, searched, feedback] = await Promise.all([
       api('/api/knowledge/analytics/summary'),
@@ -21,8 +22,7 @@ export async function renderAnalytics(app) {
     ]);
     const roleSlot = h('div', {});
     mount(app,
-      h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, 'Search & feedback analytics'),
-        h('p', { class: 'muted' }, 'Live from the database. The same SQL is in docs/sql/reports.sql.'))),
+      pageHeader({ title: 'Search & feedback analytics', description: 'Live from the database. The same SQL is in docs/sql/reports.sql.' }),
       tiles(summary),
       h('div', { class: 'grid grid-2' },
         chartCard('Most searched categories', 'Searches (search screen + agent tool calls)', searched,
@@ -40,15 +40,15 @@ export async function renderAnalytics(app) {
         chartCard('Answer outcomes', 'Agent runs', summary.outcomes || [],
           { label: (r) => r.outcome.toLowerCase(), value: (r) => Number(r.run_count), tip: (r) => `${r.outcome}: ${r.run_count}`,
             columns: [['Outcome', 'outcome'], ['Runs', 'run_count']] })),
-      h('div', { class: 'card' }, h('h2', {}, 'Documents awaiting re-indexing'),
+      h('div', { class: 'card' }, h('div', { class: 'card-header' }, h('h2', {}, 'Documents awaiting re-indexing')),
         queue.length ? table(queue, [['Document', 'title'], ['Category', 'category'], ['Status', 'status'],
           ['Current', 'current_version'], ['Pending', 'pending_version'], ['Submitted by', 'submitted_by'], ['Submitted', 'submitted_at', fmtDate]])
           : empty('Nothing is waiting for re-indexing.')),
-      h('div', { class: 'card' }, h('div', { class: 'row' }, h('h2', { style: 'margin:0' }, 'Documents accessible to role'),
-        h('span', { class: 'spacer' }), roleSelect(roleSlot)), roleSlot));
+      h('div', { class: 'card' }, h('div', { class: 'card-header' }, h('h2', {}, 'Documents accessible to role'),
+        roleSelect(roleSlot)), roleSlot));
     loadRole(roleSlot, 'EMPLOYEE');
   } catch (err) {
-    mount(app, h('div', { class: 'card' }, errorBox(err)));
+    mount(app, pageHeader({ title: 'Search & feedback analytics' }), errorBox(err));
   }
 }
 
@@ -77,7 +77,7 @@ function chartCard(title, valueName, rows, opts) {
   };
   toggle.addEventListener('click', () => { showTable = !showTable; draw(); });
   draw();
-  return h('div', { class: 'card' }, h('div', { class: 'chart-head' }, h('h3', {}, title), toggle), body);
+  return h('div', { class: 'card' }, h('div', { class: 'card-header' }, h('div', {}, h('h3', {}, title), h('div', { class: 'small subtle' }, valueName)), toggle), body);
 }
 
 function bars(rows, valueName, { label, value, max, fmt = (v) => String(v), tip }) {
@@ -119,7 +119,7 @@ function roleSelect(slot) {
 }
 
 async function loadRole(slot, role) {
-  mount(slot, loading());
+  mount(slot, skeleton(4));
   try {
     const rows = await api(`/api/knowledge/analytics/accessible-documents?role=${role}`);
     mount(slot, rows.length ? table(rows, [['Document', 'title'], ['Category', 'category'], ['Access', 'access_level'],
