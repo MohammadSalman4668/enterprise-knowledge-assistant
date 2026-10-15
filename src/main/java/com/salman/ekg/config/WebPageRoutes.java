@@ -17,7 +17,8 @@ public class WebPageRoutes implements WebMvcConfigurer {
 
     /** Page paths served by the single-page app. Kept in sync with the routes in js/app.js. */
     public static final List<String> PAGE_PATHS = List.of(
-            "/login", "/ask", "/search", "/documents", "/documents/*", "/source/*", "/analytics");
+            "/login", "/signup", "/ask", "/search", "/documents", "/documents/*", "/source/*", "/analytics",
+            "/approvals", "/profile");
 
     @Override
     public void addViewControllers(ViewControllerRegistry registry) {

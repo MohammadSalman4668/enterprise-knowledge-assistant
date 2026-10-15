@@ -8,64 +8,64 @@ import { renderSearch } from './views/search.js';
 import { renderDocuments, renderDocumentDetail } from './views/documents.js';
 import { renderSource } from './views/source.js';
 import { renderAnalytics } from './views/analytics.js';
+import { renderSignup } from './views/signup.js';
+import { renderApprovals } from './views/approvals.js';
+import { renderProfile } from './views/profile.js';
 
 const app = document.getElementById('app');
 import { state } from './state.js';
 
-const DEMO_USERS = [
-  ['employee', 'Employee', 'public + internal'],
-  ['hr', 'HR', 'public + internal + restricted'],
-  ['admin', 'Admin', 'everything incl. confidential, approvals'],
-];
-
 function renderLogin(error) {
   document.getElementById('topbar').hidden = true;
   document.getElementById('mode-banner').hidden = true;
-  let username = 'employee';
+  const email = h('input', { type: 'email', id: 'email', autocomplete: 'username', required: true, maxlength: 254 });
   const pw = h('input', { type: 'password', id: 'password', autocomplete: 'current-password', required: true });
-  const buttons = DEMO_USERS.map(([u, label, hint]) => h('button', {
-    type: 'button', class: u === username ? 'selected' : '',
-    onclick: (e) => {
-      username = u;
-      buttons.forEach((b) => b.classList.remove('selected'));
-      e.currentTarget.classList.add('selected');
-    },
-  }, h('strong', {}, label), h('span', { class: 'small muted' }, hint)));
   const submit = h('button', { class: 'primary', type: 'submit' }, 'Sign in');
   const errSlot = h('div', {}, error ? errorBox(error) : null);
   const form = h('form', {
     class: 'card login',
     onsubmit: async (e) => {
       e.preventDefault();
-      const tokenValue = basicToken(username, pw.value);
+      const tokenValue = basicToken(email.value.trim().toLowerCase(), pw.value);
       await withBusy(submit, 'Signing in…', async () => {
         try {
           const me = await api('/api/knowledge/me', { auth: tokenValue });
-          session.set({ token: tokenValue, username: me.username });
+          session.set({ token: tokenValue, username: me.email });
           history.replaceState(null, '', takeReturnPath());
           await boot();
         } catch (err) {
-          mount(errSlot, errorBox(err.status === 401
-            ? new ApiError(401, { code: 'UNAUTHENTICATED', message: 'Wrong password for this demo user.' }) : err));
+          // Pending / rejected accounts get their own message from the server; anything else is a wrong email or password.
+          if (err.code === 'ACCOUNT_PENDING') {
+            mount(errSlot, h('div', { class: 'callout warning', role: 'alert' }, `⏳ ${err.message}`));
+          } else if (err.code === 'ACCOUNT_REJECTED') {
+            mount(errSlot, h('div', { class: 'callout critical', role: 'alert' }, `✕ ${err.message}`));
+          } else if (err.status === 401) {
+            mount(errSlot, h('div', { class: 'callout critical', role: 'alert' }, 'Incorrect email or password.'));
+          } else {
+            mount(errSlot, errorBox(err));
+          }
         }
       });
     },
   },
   h('h1', {}, 'Knowledge Assistant'),
-  h('p', { class: 'muted' }, 'Sign in as one of the synthetic demo users to see role-based access in action.'),
-  h('div', { class: 'demo-users' }, buttons),
-  h('div', { class: 'field' }, h('label', { for: 'password' }, 'Demo password'), pw),
-  errSlot, submit);
+  h('p', { class: 'muted' }, 'Sign in with your work email.'),
+  h('div', { class: 'field' }, h('label', { for: 'email' }, 'Email'), email),
+  h('div', { class: 'field' }, h('label', { for: 'password' }, 'Password'), pw),
+  errSlot,
+  h('div', { class: 'row' }, submit, h('span', { class: 'spacer' }),
+    h('span', { class: 'small muted' }, 'No account? ', h('a', { href: '/signup' }, 'Sign up'))));
   mount(app, form);
-  pw.focus();
+  email.focus();
 }
 
 function renderChrome() {
   const { me, status } = state;
   document.getElementById('topbar').hidden = false;
   document.querySelectorAll('[data-admin]').forEach((el) => { el.hidden = !me.admin; });
+  document.querySelectorAll('[data-approver]').forEach((el) => { el.hidden = !me.canApprove; });
   mount(document.getElementById('user-box'),
-    h('span', {}, me.displayName),
+    h('a', { href: '/profile', class: 'profile-link', title: 'Your profile' }, me.displayName),
     h('span', { class: 'badge info' }, me.role.toLowerCase()),
     h('button', { class: 'small', onclick: () => signOut() }, 'Sign out'));
   const banner = document.getElementById('mode-banner');
@@ -83,8 +83,11 @@ const routes = [
   [/^\/documents\/(\d+)$/, (m) => renderDocumentDetail(app, Number(m[1]))],
   [/^\/source\/(\d+)$/, (m, params) => renderSource(app, Number(m[1]), params)],
   [/^\/analytics$/, () => renderAnalytics(app)],
+  [/^\/approvals$/, () => renderApprovals(app)],
+  [/^\/profile$/, () => renderProfile(app)],
 ];
-const isAppPath = (path) => path === '/login' || routes.some(([re]) => re.test(path));
+const PUBLIC_PATHS = ['/login', '/signup'];
+const isAppPath = (path) => PUBLIC_PATHS.includes(path) || routes.some(([re]) => re.test(path));
 
 /** Changes the URL without reloading and renders the matching screen. */
 function navigate(url, { replace = false } = {}) {
@@ -98,7 +101,7 @@ function route() {
     return;
   }
   const path = location.pathname;
-  if (path === '/' || path === '/login' || !routes.some(([re]) => re.test(path))) {
+  if (path === '/' || PUBLIC_PATHS.includes(path) || !routes.some(([re]) => re.test(path))) {
     navigate('/ask', { replace: true });
     return;
   }
@@ -120,6 +123,12 @@ const RETURN_KEY = 'ekg.return-path';
 
 /** Shows /login, remembering the page that was asked for so sign-in can return there. */
 function renderSignedOut(error) {
+  if (location.pathname === '/signup') {
+    document.getElementById('topbar').hidden = true;
+    document.getElementById('mode-banner').hidden = true;
+    renderSignup(app);
+    return;
+  }
   const wanted = location.pathname + location.search;
   if (location.pathname !== '/login') {
     try {

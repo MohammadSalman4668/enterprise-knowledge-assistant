@@ -11,7 +11,13 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
+import org.springframework.security.authentication.LockedException;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
@@ -29,6 +35,9 @@ import com.salman.ekg.config.WebPageRoutes;
  *       ownership, lifecycle transitions) live in the services and are enforced there too.</li>
  *   <li>401/403 are JSON without {@code WWW-Authenticate}, so the browser never shows its
  *       native login pop-up; the SPA has its own sign-in form.</li>
+ *   <li>Users sign in with email + password. A PENDING or REJECTED account is reported as such
+ *       only <em>after</em> the password is verified, so the sign-in form cannot be used to
+ *       discover which emails have pending requests.</li>
  * </ul>
  */
 @Configuration
@@ -44,6 +53,8 @@ public class SecurityConfig {
                         .requestMatchers("/", "/index.html", "/css/**", "/js/**", "/favicon.svg", "/error").permitAll()
                         // Page URLs only return the app shell (no data); data stays behind /api/**.
                         .requestMatchers(WebPageRoutes.PAGE_PATHS.toArray(String[]::new)).permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/signup").permitAll()
+                        .requestMatchers("/api/users/**").hasAnyRole("HR", "ADMIN")
                         .requestMatchers("/api/knowledge/analytics/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/knowledge/documents/*/reindex").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST,
@@ -67,9 +78,36 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 
+    /** Password first, account status second (the default checks status before the password). */
+    @Bean
+    AuthenticationProvider authenticationProvider(DatabaseUserDetailsService users, PasswordEncoder encoder) {
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider(users);
+        provider.setPasswordEncoder(encoder);
+        provider.setPreAuthenticationChecks(user -> { });
+        provider.setPostAuthenticationChecks(user -> {
+            if (!user.isAccountNonLocked()) {
+                throw new LockedException("Your sign-up request was rejected. Contact an administrator.");
+            }
+            if (!user.isEnabled()) {
+                boolean employee = user.getAuthorities().stream().anyMatch(a -> "ROLE_EMPLOYEE".equals(a.getAuthority()));
+                throw new DisabledException("Your account is awaiting approval by " + (employee ? "HR" : "an Admin") + ".");
+            }
+        });
+        return provider;
+    }
+
     private AuthenticationEntryPoint jsonEntryPoint() {
-        return (request, response, ex) -> writeJson(response, 401, "UNAUTHENTICATED",
-                "Valid credentials are required", request.getRequestURI());
+        return (request, response, ex) -> {
+            if (ex instanceof DisabledException) {
+                writeJson(response, 401, "ACCOUNT_PENDING", ex.getMessage(), request.getRequestURI());
+            } else if (ex instanceof LockedException) {
+                writeJson(response, 401, "ACCOUNT_REJECTED", ex.getMessage(), request.getRequestURI());
+            } else if (ex instanceof BadCredentialsException || ex instanceof UsernameNotFoundException) {
+                writeJson(response, 401, "UNAUTHENTICATED", "Incorrect email or password", request.getRequestURI());
+            } else {
+                writeJson(response, 401, "UNAUTHENTICATED", "Valid credentials are required", request.getRequestURI());
+            }
+        };
     }
 
     private AccessDeniedHandler jsonAccessDenied() {
@@ -82,8 +120,9 @@ public class SecurityConfig {
         response.setStatus(status);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         String safePath = path == null ? "" : path.replaceAll("[\"\\\\]", "");
+        String safeMessage = message == null ? "" : message.replaceAll("[\"\\\\]", "");
         response.getWriter().write("{\"timestamp\":\"" + Instant.now() + "\",\"status\":" + status
-                + ",\"code\":\"" + code + "\",\"message\":\"" + message + "\",\"path\":\"" + safePath
+                + ",\"code\":\"" + code + "\",\"message\":\"" + safeMessage + "\",\"path\":\"" + safePath
                 + "\",\"fieldErrors\":[]}");
     }
 }

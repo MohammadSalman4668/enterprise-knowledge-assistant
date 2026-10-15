@@ -6,8 +6,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
  * All tunable application settings under the {@code ekg.*} prefix.
- * Secrets (DB password, demo password) are only ever read from the environment or the
- * git-ignored {@code local.properties}.
+ * Secrets and personal details (DB password, the bootstrap admin's name, email and password) are
+ * only ever read from the environment or the git-ignored {@code local.properties}.
  */
 @ConfigurationProperties(prefix = "ekg")
 public record KnowledgeProperties(
@@ -17,7 +17,7 @@ public record KnowledgeProperties(
         Llm llm,
         Embedding embedding,
         Seed seed,
-        Demo demo) {
+        Admin admin) {
 
     public record Ingestion(long maxBytes, int chunkSize) {}
 
@@ -75,5 +75,9 @@ public record KnowledgeProperties(
 
     public record Seed(boolean enabled) {}
 
-    public record Demo(String password) {}
+    /**
+     * The first Admin, created (or refreshed) at every startup. It approves HR and other Admin
+     * sign-ups. Set in local.properties: ekg.admin.name, ekg.admin.email, ekg.admin.password.
+     */
+    public record Admin(String name, String email, String password) {}
 }

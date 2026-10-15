@@ -14,12 +14,11 @@ import org.springframework.stereotype.Component;
 
 import com.salman.ekg.config.KnowledgeProperties;
 import com.salman.ekg.domain.AccessLevel;
-import com.salman.ekg.domain.AppUser;
 import com.salman.ekg.domain.DocumentStatus;
 import com.salman.ekg.domain.KnowledgeDocument;
 import com.salman.ekg.domain.Role;
-import com.salman.ekg.repository.AppUserRepository;
 import com.salman.ekg.repository.KnowledgeDocumentRepository;
+import com.salman.ekg.security.AdminBootstrap;
 import com.salman.ekg.security.CurrentUser;
 
 import tools.jackson.core.type.TypeReference;
@@ -36,19 +35,19 @@ public class SeedDataLoader implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(SeedDataLoader.class);
 
-    record SeedEntry(String file, String title, String category, AccessLevel accessLevel, String owner) {}
+    record SeedEntry(String file, String title, String category, AccessLevel accessLevel) {}
 
     private final DocumentService documentService;
     private final KnowledgeDocumentRepository documents;
-    private final AppUserRepository users;
+    private final AdminBootstrap adminBootstrap;
     private final ObjectMapper mapper;
     private final KnowledgeProperties props;
 
     public SeedDataLoader(DocumentService documentService, KnowledgeDocumentRepository documents,
-                          AppUserRepository users, ObjectMapper mapper, KnowledgeProperties props) {
+                          AdminBootstrap adminBootstrap, ObjectMapper mapper, KnowledgeProperties props) {
         this.documentService = documentService;
         this.documents = documents;
-        this.users = users;
+        this.adminBootstrap = adminBootstrap;
         this.mapper = mapper;
         this.props = props;
     }
@@ -63,7 +62,8 @@ public class SeedDataLoader implements ApplicationRunner {
 
     /** Public so integration tests can restore a known corpus after resetting the database. */
     public int seed() {
-        CurrentUser admin = new CurrentUser("admin", Role.ADMIN);
+        // Seed documents are uploaded by the bootstrap admin, so they are live immediately.
+        CurrentUser admin = new CurrentUser(adminBootstrap.adminEmail(), Role.ADMIN);
         List<SeedEntry> entries;
         try (InputStream in = new ClassPathResource("seed/manifest.json").getInputStream()) {
             entries = mapper.readValue(in, new TypeReference<List<SeedEntry>>() { });
@@ -71,7 +71,6 @@ public class SeedDataLoader implements ApplicationRunner {
             throw new IllegalStateException("Cannot read seed manifest", e);
         }
         for (SeedEntry entry : entries) {
-            Role ownerRole = users.findByUsername(entry.owner()).map(AppUser::getRole).orElse(Role.ADMIN);
             byte[] bytes;
             try (InputStream in = new ClassPathResource("seed/docs/" + entry.file()).getInputStream()) {
                 bytes = in.readAllBytes();
@@ -80,9 +79,9 @@ public class SeedDataLoader implements ApplicationRunner {
             }
             KnowledgeDocument doc = documentService.upload(new DocumentService.UploadCommand(entry.title(),
                     entry.category(), entry.accessLevel(), entry.file(), bytes),
-                    new CurrentUser(entry.owner(), ownerRole));
-            if (doc.getStatus() == DocumentStatus.PENDING_APPROVAL) {
-                documentService.approve(doc.getId(), admin); // admin-owned seed documents are already live
+                    admin);
+            if (doc.getStatus() != DocumentStatus.ACTIVE) {
+                throw new IllegalStateException("Seed document was not activated: " + entry.file());
             }
         }
         return entries.size();

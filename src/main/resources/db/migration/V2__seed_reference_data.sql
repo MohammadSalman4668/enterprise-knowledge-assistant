@@ -1,5 +1,6 @@
--- Reference data: access policy matrix and synthetic demo users.
--- Passwords are NOT seeded; DemoUserInitializer sets them from EKG_DEMO_PASSWORD at startup.
+-- Reference data: the access policy matrix.
+-- No user accounts are seeded: the first Admin is created at startup from configuration
+-- (AdminBootstrap, values in the git-ignored local.properties); everyone else signs up.
 -- Seed documents are ingested through the real pipeline by SeedDataLoader (so they are
 -- parsed, chunked and versioned exactly like uploads), see src/main/resources/seed/.
 
@@ -13,8 +14,3 @@ INSERT INTO access_policy (user_role, document_access_level) VALUES
     ('ADMIN',    'INTERNAL'),
     ('ADMIN',    'CONFIDENTIAL'),
     ('ADMIN',    'RESTRICTED');
-
-INSERT INTO app_user (username, display_name, role) VALUES
-    ('employee', 'Emma Employee', 'EMPLOYEE'),
-    ('hr',       'Hana HR',       'HR'),
-    ('admin',    'Ada Admin',     'ADMIN');

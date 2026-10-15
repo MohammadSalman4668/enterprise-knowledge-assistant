@@ -16,7 +16,7 @@ import com.salman.ekg.support.AbstractIntegrationTest;
 class PageRoutesIntegrationTest extends AbstractIntegrationTest {
 
     @ParameterizedTest
-    @ValueSource(strings = {"/login", "/ask", "/search", "/documents", "/documents/5", "/source/40", "/analytics"})
+    @ValueSource(strings = {"/login", "/signup", "/ask", "/search", "/documents", "/documents/5", "/source/40", "/analytics", "/approvals", "/profile"})
     @DisplayName("Page URLs opened directly (or refreshed) return the single-page app without sign-in")
     void pagePathsServeAppShell(String path) throws Exception {
         mvc.perform(get(path)).andExpect(status().isOk()).andExpect(forwardedUrl("/index.html"));

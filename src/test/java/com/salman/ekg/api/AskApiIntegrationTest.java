@@ -143,7 +143,7 @@ class AskApiIntegrationTest extends AbstractIntegrationTest {
         assertThat(list(res, "trace")).filteredOn(t -> t.get("tool") != null)
                 .allSatisfy(t -> assertThat(t.get("tool")).isIn("search_knowledge", "read_chunk"));
         // ...and the caller is still an employee who cannot reach admin endpoints.
-        mvc.perform(get("/api/knowledge/me").with(EMPLOYEE)).andExpect(jsonPath("$.role").value("EMPLOYEE"));
+        mvc.perform(get("/api/users/pending").with(EMPLOYEE)).andExpect(status().isForbidden());
         mvc.perform(get("/api/knowledge/analytics/summary").with(EMPLOYEE)).andExpect(status().isForbidden());
     }
 

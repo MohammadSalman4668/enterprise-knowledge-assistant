@@ -131,7 +131,7 @@ function actions(d, reload) {
     btns.push(act('Approve', async () => { await api(`/api/knowledge/documents/${d.id}/approve`, { method: 'POST' }); return `Approved “${d.title}” - now searchable`; }));
     btns.push(act('Reject', async () => { await api(`/api/knowledge/documents/${d.id}/reject`, { method: 'POST' }); return `Rejected “${d.title}”`; }, 'danger'));
   }
-  if (live && me.canContribute && (me.admin || d.owner === me.username)) {
+  if (live && me.canContribute && (me.admin || d.owner === me.email)) {
     btns.push(revisionButton(d, reload));
   }
   if (me.admin && live) {

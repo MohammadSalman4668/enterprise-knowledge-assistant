@@ -1,12 +1,12 @@
 [
-  { "file": "annual-leave-policy.md",       "title": "Annual Leave Policy",               "category": "HR",          "accessLevel": "INTERNAL",     "owner": "hr" },
-  { "file": "expense-policy.md",            "title": "Travel and Expense Policy",         "category": "Finance",     "accessLevel": "INTERNAL",     "owner": "admin" },
-  { "file": "travel-faq.md",                "title": "Business Travel FAQ",               "category": "Finance",     "accessLevel": "PUBLIC",       "owner": "admin" },
-  { "file": "vpn-runbook.md",               "title": "VPN Access Runbook",                "category": "IT",          "accessLevel": "INTERNAL",     "owner": "admin" },
-  { "file": "incident-response-runbook.md", "title": "Incident Response Runbook",         "category": "Engineering", "accessLevel": "CONFIDENTIAL", "owner": "admin" },
-  { "file": "salary-bands.md",              "title": "Engineering Salary Bands 2026",     "category": "HR",          "accessLevel": "RESTRICTED",   "owner": "hr" },
-  { "file": "remote-work-faq.md",           "title": "Remote Work FAQ",                   "category": "HR",          "accessLevel": "INTERNAL",     "owner": "hr" },
-  { "file": "password-policy.txt",          "title": "Password and MFA Standard",         "category": "IT",          "accessLevel": "PUBLIC",       "owner": "admin" },
-  { "file": "onboarding-faq.md",            "title": "New Starter Onboarding FAQ",        "category": "General",     "accessLevel": "PUBLIC",       "owner": "admin" },
-  { "file": "deployment-runbook.md",        "title": "Production Deployment Runbook",     "category": "Engineering", "accessLevel": "INTERNAL",     "owner": "admin" }
+  { "file": "annual-leave-policy.md",       "title": "Annual Leave Policy",               "category": "HR",          "accessLevel": "INTERNAL" },
+  { "file": "expense-policy.md",            "title": "Travel and Expense Policy",         "category": "Finance",     "accessLevel": "INTERNAL" },
+  { "file": "travel-faq.md",                "title": "Business Travel FAQ",               "category": "Finance",     "accessLevel": "PUBLIC" },
+  { "file": "vpn-runbook.md",               "title": "VPN Access Runbook",                "category": "IT",          "accessLevel": "INTERNAL" },
+  { "file": "incident-response-runbook.md", "title": "Incident Response Runbook",         "category": "Engineering", "accessLevel": "CONFIDENTIAL" },
+  { "file": "salary-bands.md",              "title": "Engineering Salary Bands 2026",     "category": "HR",          "accessLevel": "RESTRICTED" },
+  { "file": "remote-work-faq.md",           "title": "Remote Work FAQ",                   "category": "HR",          "accessLevel": "INTERNAL" },
+  { "file": "password-policy.txt",          "title": "Password and MFA Standard",         "category": "IT",          "accessLevel": "PUBLIC" },
+  { "file": "onboarding-faq.md",            "title": "New Starter Onboarding FAQ",        "category": "General",     "accessLevel": "PUBLIC" },
+  { "file": "deployment-runbook.md",        "title": "Production Deployment Runbook",     "category": "Engineering", "accessLevel": "INTERNAL" }
 ]

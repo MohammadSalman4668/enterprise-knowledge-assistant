@@ -5,16 +5,26 @@
 -- =====================================================================
 
 -- ---------- Identity & access ---------------------------------------
+-- Accounts. Users sign up (status PENDING) and sign in with their email once approved:
+-- Employee requests are decided by HR, HR and Admin requests by an Admin. The first Admin
+-- is created at startup from configuration (AdminBootstrap); no account is seeded here.
 CREATE TABLE app_user (
     id            BIGSERIAL    PRIMARY KEY,
-    username      VARCHAR(64)  NOT NULL,
+    email         VARCHAR(254) NOT NULL,      -- sign-in id, stored lower-case
     display_name  VARCHAR(100) NOT NULL,
-    password_hash VARCHAR(100),               -- set at startup from config; never seeded
+    password_hash VARCHAR(100) NOT NULL,      -- BCrypt
     role          VARCHAR(16)  NOT NULL,
-    enabled       BOOLEAN      NOT NULL DEFAULT TRUE,
-    CONSTRAINT uk_app_user_username UNIQUE (username),
-    CONSTRAINT ck_app_user_role CHECK (role IN ('EMPLOYEE', 'HR', 'ADMIN'))
+    status        VARCHAR(16)  NOT NULL,
+    created_at    TIMESTAMPTZ  NOT NULL,
+    decided_by    VARCHAR(254),               -- email of the approver / rejecter
+    decided_at    TIMESTAMPTZ,
+    CONSTRAINT uk_app_user_email UNIQUE (email),
+    CONSTRAINT ck_app_user_email_lower CHECK (email = lower(email)),
+    CONSTRAINT ck_app_user_role CHECK (role IN ('EMPLOYEE', 'HR', 'ADMIN')),
+    CONSTRAINT ck_app_user_status CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED')),
+    CONSTRAINT ck_app_user_decision CHECK ((status = 'PENDING') = (decided_at IS NULL))
 );
+CREATE INDEX idx_app_user_status_role ON app_user (status, role);
 
 -- Which role may read which access level. Not hierarchical on purpose:
 -- HR can read RESTRICTED (people data) but not CONFIDENTIAL runbooks, which only Admin can read.

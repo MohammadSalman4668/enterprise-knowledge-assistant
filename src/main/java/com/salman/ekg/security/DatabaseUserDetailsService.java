@@ -6,9 +6,11 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
+import com.salman.ekg.domain.AccountStatus;
 import com.salman.ekg.domain.AppUser;
 import com.salman.ekg.repository.AppUserRepository;
 
+/** Loads accounts by email. PENDING accounts are "disabled", REJECTED ones "locked". */
 @Service
 public class DatabaseUserDetailsService implements UserDetailsService {
 
@@ -19,14 +21,14 @@ public class DatabaseUserDetailsService implements UserDetailsService {
     }
 
     @Override
-    public UserDetails loadUserByUsername(String username) {
-        AppUser user = users.findByUsername(username)
-                .filter(u -> u.getPasswordHash() != null)
+    public UserDetails loadUserByUsername(String email) {
+        AppUser user = users.findByEmail(AppUser.normalizeEmail(email))
                 .orElseThrow(() -> new UsernameNotFoundException("Unknown user"));
-        return User.withUsername(user.getUsername())
+        return User.withUsername(user.getEmail())
                 .password(user.getPasswordHash())
                 .roles(user.getRole().name())
-                .disabled(!user.isEnabled())
+                .disabled(user.getStatus() == AccountStatus.PENDING)
+                .accountLocked(user.getStatus() == AccountStatus.REJECTED)
                 .build();
     }
 }

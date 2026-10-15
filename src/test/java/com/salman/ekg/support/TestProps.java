@@ -23,6 +23,6 @@ public final class TestProps {
                 new KnowledgeProperties.Embedding(false, "fake", "", Duration.ofSeconds(5), 0.35,
                         "search_query:", "search_document:", 16, false),
                 new KnowledgeProperties.Seed(false),
-                new KnowledgeProperties.Demo("unused"));
+                new KnowledgeProperties.Admin("Test Admin", "admin@example.test", ""));
     }
 }

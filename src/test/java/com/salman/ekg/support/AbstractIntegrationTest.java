@@ -22,6 +22,7 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 import com.jayway.jsonpath.JsonPath;
+import com.salman.ekg.security.AdminBootstrap;
 import com.salman.ekg.service.SeedDataLoader;
 
 import tools.jackson.databind.ObjectMapper;
@@ -49,10 +50,14 @@ public abstract class AbstractIntegrationTest {
     @Autowired
     private SeedDataLoader seeder;
 
+    @Autowired
+    private AdminBootstrap adminBootstrap;
+
     @BeforeEach
     void resetDatabase() {
         flyway.clean();
         flyway.migrate();
+        adminBootstrap.run(null);
         seeder.seed();
     }
 
