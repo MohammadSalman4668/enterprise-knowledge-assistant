@@ -145,6 +145,15 @@ class AgentComponentsTest {
         }
 
         @Test
+        @DisplayName("Regression: a repeated question is not a claim and is dropped (seen from qwen2.5)")
+        void dropsRepeatedQuestion() {
+            ValidationResult r = validator.validate(
+                    "How much annual leave do employees get [E1]? Full-time employees receive 25 days of paid annual leave [E1].",
+                    evidence);
+            assertThat(r.text()).isEqualTo("Full-time employees receive 25 days of paid annual leave [E1].");
+        }
+
+        @Test
         void dropsUncitedUnknownUnsupportedAndInventedNumbers() {
             ValidationResult r = validator.validate(
                     "Leave is generous. Staff get 25 days of leave [E7]. Employees receive 30 days of annual leave [E1]. "

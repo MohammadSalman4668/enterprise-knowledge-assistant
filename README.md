@@ -153,7 +153,7 @@ RESEARCH    the model requests tool calls; Java decides if they run             
               search_knowledge(query, category)  → permission-filtered hits
               read_chunk(chunk_id)               → only chunks this run's searches returned
 GATE        per goal: is there enough evidence? (word coverage ≥ 0.6           EvidenceGate
-              or meaning similarity ≥ 0.62). No evidence for any goal → abstain, no model call
+              or meaning similarity ≥ 0.635). No evidence for any goal → abstain, no model call
 CONFLICT    compare figures across documents (e.g. two hotel caps)              ConflictDetector
 SYNTHESIZE  the model writes the answer from the gated evidence only            OllamaSynthesizer
 VALIDATE    Java drops uncited sentences, unknown citations, unsupported        CitationValidator
@@ -244,8 +244,8 @@ All `/api/**` endpoints except sign-up require HTTP Basic authentication (email 
 ### Examples
 
 ```bash
-# Upload (HR/Admin)
-curl -u admin@example.com:PASSWORD -F file=@docs/samples/parking-policy.md \
+# Upload (HR/Admin): any new .txt, .md or .pdf file (identical content to an existing document is rejected with 409)
+curl -u admin@example.com:PASSWORD -F file=@path/to/parking-policy.md \
      -F title="Parking Policy" -F category=Facilities -F accessLevel=INTERNAL \
      http://localhost:8080/api/knowledge/documents
 # 201 Created  {"id":12,"title":"Parking Policy","status":"ACTIVE","version":1,...}
@@ -355,8 +355,8 @@ Other suites: `AccountIntegrationTest` (sign-up and approval routing), `Persiste
 | `ekg.llm.base-url` | `http://localhost:11434/v1` | Ollama OpenAI-compatible endpoint |
 | `ekg.llm.timeout` | `120s` | per model call; on time-out the fallback is used |
 | `ekg.embedding.model` | `nomic-embed-text` | embedding model (env `EKG_EMBEDDING_MODEL`) |
-| `ekg.embedding.min-similarity` | `0.62` | similarity at which a passage counts as evidence by meaning |
-| `ekg.ingestion.chunk-size` | `800` | maximum characters per chunk |
+| `ekg.embedding.min-similarity` | `0.635` | similarity at which a passage counts as evidence by meaning (calibrated on the seed corpus) |
+| `ekg.ingestion.chunk-min-tokens` / `chunk-max-tokens` / `chunk-overlap-tokens` | `350` / `400` / `50` | chunk size in approximate tokens, and the overlap between chunks of one section |
 | `ekg.ingestion.max-bytes` | `5242880` | upload limit (5 MB) |
 | `ekg.retrieval.timeout` | `10s` | time budget for the parallel retrievers |
 | `ekg.agent.max-tool-calls` | `10` | tool-call budget per question |
@@ -375,7 +375,6 @@ src/main/resources/
 src/test/java/...            unit and integration tests
 src/test/resources/          test profile, evaluation question set
 docs/sql/reports.sql         the five SQL tasks
-docs/samples/                files for manual upload tests (incl. an unsupported file)
 docs/screenshots/            screenshots of the main screens and test results
 scripts/capture-screenshots.mjs   regenerates the screenshots (headless Edge/Chrome)
 db/setup-local-db.sql        optional database/role setup
@@ -394,6 +393,22 @@ reviewed, tested and is explainable.
 - Tool use during development: running the test suite after every change, checking the live
   application in a browser, inspecting the database with read-only SQL, and reading agent traces of
   failing questions to find root causes.
+
+**My design decisions**
+- **Approval flow by role**: sign-ups start as *pending*. An **Employee** request is approved by **HR**;
+  an **HR** or **Admin** request is approved by an **Admin**. The first Admin is created from configuration,
+  so there is always someone who can approve.
+- **Semantic search, not only keywords**: questions are matched by **meaning** (embeddings) as well as by
+  words, so "paid time off" finds the *Annual Leave Policy*. Keyword search stays as the fallback when the
+  embedding model is unavailable.
+- **Agent / model comparison**: I compared local models (`qwen2.5:3b`, `qwen2.5:7b`, `qwen3:4b`, `qwen3:8b`)
+  and embedding models (`nomic-embed-text`, `bge-m3`) on answer quality, speed on a CPU and reliability,
+  and also considered hosted APIs. I chose the current setup, **`qwen2.5:3b` + `nomic-embed-text`**, as
+  final: free, runs offline (no company data leaves the machine), and fast enough on a laptop CPU, while the
+  Java evidence checks keep answers grounded.
+- **UI**: designed as a senior UI/UX developer would: a clean, calm interface (sidebar navigation, one
+  accent colour, readable typography, light and dark mode), clear loading and error states, and the
+  evidence and agent trace one click away for transparency.
 
 **One defect found and fixed**
 *Valid answers were thrown away as "uncited".* The local model often wrote citation lists as `[E2, E3]`
@@ -425,4 +440,7 @@ the prompt now contains no example facts and a regression test checks it (`Ollam
 - **Conflict detection** compares numbers per quantity across documents; it does not understand meaning.
 - **Authentication** is HTTP Basic over a stateless API for simplicity; production would use HTTPS with
   SSO/OAuth2.
-- **Chunking** is character-based (800 characters, no overlap), section-aware but not token-based.
+- **Chunking** uses an approximate token count (words, numbers and punctuation; long words count twice),
+  not the model's own tokenizer. Most seed documents are shorter than 350 tokens, so each is one chunk.
+- **Meaning threshold**: with `nomic-embed-text`, scores of right and wrong documents overlap slightly
+  (answerable 0.64-0.73, unrelated up to 0.64), so the threshold trades a few refusals for safety.

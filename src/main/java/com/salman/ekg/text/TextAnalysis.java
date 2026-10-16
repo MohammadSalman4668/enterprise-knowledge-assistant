@@ -16,6 +16,7 @@ import java.util.regex.Pattern;
 public final class TextAnalysis {
 
     private static final Pattern TOKEN = Pattern.compile("[\\p{L}\\p{N}]+");
+    private static final Pattern MD_HEADING_LINE = Pattern.compile("^#{1,6}\\s.*");
     private static final Pattern SENTENCE_BREAK = Pattern.compile("(?<=[.!?])\\s+(?=[\\p{Lu}\\p{N}\"'(\\[])");
 
     /** Function words and question words that carry no retrieval signal. */
@@ -67,7 +68,11 @@ public final class TextAnalysis {
             t = t.substring(0, t.length() - 1);
         }
         boolean suffixRemoved = false;
-        if (t.endsWith("ing") && t.length() - 3 >= 3) {
+        if (t.endsWith("ly") && t.length() - 2 >= 4) {
+            t = t.substring(0, t.length() - 2); // "consecutively" -> "consecutive", "monthly" -> "month"
+        } else if (t.endsWith("ment") && t.length() - 4 >= 4) {
+            t = t.substring(0, t.length() - 4); // "deployment" -> "deploy", "payment" -> "pay"
+        } else if (t.endsWith("ing") && t.length() - 3 >= 3) {
             t = t.substring(0, t.length() - 3);
             suffixRemoved = true;
         } else if (t.endsWith("ed") && t.length() - 2 >= 3) {
@@ -138,8 +143,8 @@ public final class TextAnalysis {
         }
         for (String line : text.split("\\R")) {
             String trimmed = line.strip();
-            if (trimmed.isEmpty()) {
-                continue;
+            if (trimmed.isEmpty() || MD_HEADING_LINE.matcher(trimmed).matches()) {
+                continue; // chunks keep "## Heading" lines for context; they are labels, not sentences
             }
             for (String s : SENTENCE_BREAK.split(trimmed)) {
                 String clean = s.strip().replaceFirst("^[-*•]\\s+", "");

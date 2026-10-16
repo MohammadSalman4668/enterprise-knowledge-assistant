@@ -92,7 +92,7 @@ class IngestionUnitTest {
     }
 
     @Test
-    @DisplayName("Chunks never span sections and carry the heading path")
+    @DisplayName("Small neighbouring sections are packed into one chunk that keeps every heading and the heading path")
     void chunkerKeepsSections() {
         String md = """
                 # Leave Policy
@@ -105,21 +105,32 @@ class IngestionUnitTest {
                 Up to 5 days.
                 """;
         List<Chunker.ChunkDraft> chunks = chunker.chunk(parser.parse("p.md", utf8(md)));
-        assertThat(chunks).extracting(Chunker.ChunkDraft::sectionRef)
-                .containsExactly("Leave Policy", "Leave Policy > Entitlement", "Leave Policy > Carry-over");
-        assertThat(chunks).extracting(Chunker.ChunkDraft::index).containsExactly(0, 1, 2);
-        assertThat(chunks.get(1).content()).isEqualTo("You get 25 days.");
+        // Each section is far below the 350-token minimum: one chunk, with headings kept in the text.
+        assertThat(chunks).hasSize(1);
+        assertThat(chunks.getFirst().sectionRef()).isEqualTo("Leave Policy; Entitlement; Carry-over");
+        assertThat(chunks.getFirst().content()).isEqualTo("""
+                # Leave Policy
+
+                Intro text.
+
+                ## Entitlement
+
+                You get 25 days.
+
+                ## Carry-over
+
+                Up to 5 days.""");
     }
 
     @Test
-    @DisplayName("Plain-text ALL-CAPS lines are headings; long paragraphs split on sentence boundaries within the size limit")
+    @DisplayName("Plain-text ALL-CAPS lines are headings; long paragraphs split on sentence boundaries within the 400-token maximum")
     void chunkerSplitsLongText() {
         String sentence = "This sentence about the expense policy is fairly long and repeats. ";
-        String txt = "EXPENSES\n\n" + sentence.repeat(30);
+        String txt = "EXPENSES\n\n" + sentence.repeat(100); // about 1,200 tokens
         List<Chunker.ChunkDraft> chunks = chunker.chunk(parser.parse("e.txt", utf8(txt)));
         assertThat(chunks).hasSizeGreaterThan(1);
         assertThat(chunks).allSatisfy(c -> {
-            assertThat(c.content().length()).isLessThanOrEqualTo(800);
+            assertThat(chunker.countTokens(c.content())).isLessThanOrEqualTo(400);
             assertThat(c.sectionRef()).isEqualTo("Expenses");
             assertThat(c.content()).endsWith(".");
         });

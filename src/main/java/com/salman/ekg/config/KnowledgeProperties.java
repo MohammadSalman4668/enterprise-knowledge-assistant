@@ -3,6 +3,7 @@ package com.salman.ekg.config;
 import java.time.Duration;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.DefaultValue;
 
 /**
  * All tunable application settings under the {@code ekg.*} prefix.
@@ -19,7 +20,21 @@ public record KnowledgeProperties(
         Seed seed,
         Admin admin) {
 
-    public record Ingestion(long maxBytes, int chunkSize) {}
+    /**
+     * Upload limits and chunking. Chunk sizes are approximate <em>tokens</em> (see
+     * {@code com.salman.ekg.ingestion.TokenCounter}), not characters.
+     *
+     * @param chunkMinTokens     a chunk keeps absorbing following paragraphs/sections until it reaches this size
+     * @param chunkMaxTokens     hard upper bound; longer paragraphs are split at sentences (then words)
+     * @param chunkOverlapTokens closing text of a chunk repeated at the start of the next chunk of the same section
+     * @param chunkTokenizer     {@code approximate} (words, numbers, punctuation; long words count twice)
+     *                           or {@code whitespace}
+     */
+    public record Ingestion(long maxBytes,
+                            @DefaultValue("350") int chunkMinTokens,
+                            @DefaultValue("400") int chunkMaxTokens,
+                            @DefaultValue("50") int chunkOverlapTokens,
+                            @DefaultValue("approximate") String chunkTokenizer) {}
 
     /** Time budget for each retriever (keyword and semantic run in parallel). */
     public record Retrieval(Duration timeout, int defaultLimit) {}

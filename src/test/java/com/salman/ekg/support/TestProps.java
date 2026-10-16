@@ -16,7 +16,7 @@ public final class TestProps {
 
     public static KnowledgeProperties withTimeouts(Duration retrieval, Duration llm) {
         return new KnowledgeProperties(
-                new KnowledgeProperties.Ingestion(5_242_880, 800),
+                new KnowledgeProperties.Ingestion(5_242_880, 350, 400, 50, "approximate"),
                 new KnowledgeProperties.Retrieval(retrieval, 10),
                 new KnowledgeProperties.Agent(10, 0.6, 2, 3),
                 new KnowledgeProperties.Llm("simulated", "test-model", llm, 512, ""),

@@ -55,6 +55,9 @@ public class CitationValidator {
             if (plain.chars().noneMatch(Character::isLetterOrDigit)) {
                 continue;
             }
+            if (plain.endsWith("?")) {
+                continue; // small models often repeat the question first; a question is not a claim to keep
+            }
             if (INSUFFICIENT.matcher(plain).find()) {
                 issues.add("MODEL_REPORTED_INSUFFICIENT_EVIDENCE: " + abbreviate(plain));
                 continue;
