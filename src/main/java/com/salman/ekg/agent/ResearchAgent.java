@@ -97,35 +97,62 @@ public class ResearchAgent {
     public AskResponse ask(AskRequest request, CurrentUser user) {
         long start = System.nanoTime();
         AgentContext ctx = new AgentContext(user, request.category(), props.agent().maxToolCalls());
-        boolean degraded = false;
 
-        // PLAN
-        List<SubQuestion> subs = queryPlanner.plan(request.question(), props.agent().maxSubQuestions());
-        ctx.addTrace("PLAN", null, Map.of("question", request.question()), "OK",
+        List<SubQuestion> subs = plan(ctx, request.question());
+        research(ctx, request.question(), subs);
+        List<Assessment> assessments = assessEvidence(ctx, subs);
+        List<Assessment> supported = assessments.stream().filter(Assessment::supported).toList();
+        if (supported.isEmpty()) {
+            return finish(request, user, ctx, AnswerOutcome.ABSTAINED, ABSTAIN_MESSAGE, assessments, List.of(),
+                    List.of(), Set.of(), ctx.degraded(), start);
+        }
+        List<Conflict> conflicts = checkConflicts(ctx, assessments);
+        SynthesisInput input = new SynthesisInput(request.question(), supported, conflicts);
+        Map<String, EvidenceItem> byRef = new LinkedHashMap<>();
+        ctx.evidence().forEach(e -> byRef.put(e.ref(), e));
+        Draft draft = synthesize(ctx, input);
+        ValidationResult validation = validate(ctx, input, draft, byRef);
+        return compose(request, user, ctx, assessments, conflicts, validation, start);
+    }
+
+    /** A synthesized answer body, and whether the live model (rather than the extractive fallback) wrote it. */
+    private record Draft(String body, boolean byModel) {}
+
+    /** PLAN: split the question into sub-questions (goals). */
+    private List<SubQuestion> plan(AgentContext ctx, String question) {
+        List<SubQuestion> subs = queryPlanner.plan(question, props.agent().maxSubQuestions());
+        ctx.addTrace("PLAN", null, Map.of("question", question), "OK",
                 subs.stream().map(s -> "#" + (s.index() + 1) + " " + s.text() + " " + s.keyTerms())
                         .collect(Collectors.joining(" | ")), 0);
+        return subs;
+    }
 
-        // RESEARCH
+    /** RESEARCH: the model chooses tool calls; if it fails, deterministic keyword research takes over. */
+    private void research(AgentContext ctx, String question, List<SubQuestion> subs) {
         try {
-            models.planner().collect(ctx, request.question(), subs);
+            models.planner().collect(ctx, question, subs);
         } catch (ApiException e) {
             throw e; // e.g. RETRIEVAL_UNAVAILABLE -> clear 503
         } catch (RuntimeException e) {
             if (models.planner() == fallbackPlanner) {
                 throw e;
             }
-            degraded = true;
+            ctx.markDegraded();
             log.warn("Live research failed, falling back to deterministic research", e);
             ctx.warn("The AI model was unavailable during research (" + e.getClass().getSimpleName()
                     + "); deterministic keyword research was used instead.");
             ctx.addTrace("FALLBACK", null, Map.of(), "DEGRADED", "planner -> deterministic", 0);
-            fallbackPlanner.collect(ctx, request.question(), subs);
+            fallbackPlanner.collect(ctx, question, subs);
         }
+    }
 
-        // GATE
+    /**
+     * GATE: Java decides per goal whether the evidence is sufficient. A live model that stopped researching
+     * too early gets a deterministic top-up first, so it cannot cause a false abstention.
+     */
+    private List<Assessment> assessEvidence(AgentContext ctx, List<SubQuestion> subs) {
         List<Assessment> assessments = gate.assess(subs, ctx.evidence());
         if (models.mode() == AgentMode.LIVE) {
-            // Safety net: a live model that stops early must not cause a false abstention.
             boolean added = false;
             for (Assessment a : assessments) {
                 if (!a.supported() && !ctx.budgetExhausted()) {
@@ -142,55 +169,56 @@ public class ResearchAgent {
                 assessments.stream().map(a -> "#" + (a.subQuestion().index() + 1) + (a.supported() ? " supported" : " NOT supported")
                         + " (word coverage " + a.bestCoverage() + ", meaning similarity " + a.bestSimilarity() + ")")
                         .collect(Collectors.joining(" | ")), 0);
+        return assessments;
+    }
 
-        List<Assessment> supported = assessments.stream().filter(Assessment::supported).toList();
-        if (supported.isEmpty()) {
-            return finish(request, user, ctx, AnswerOutcome.ABSTAINED, ABSTAIN_MESSAGE, assessments, List.of(),
-                    List.of(), Set.of(), degraded, start);
-        }
-
-        // CONFLICT CHECK
+    /** CONFLICT CHECK: figures that differ between documents are reported, never silently resolved. */
+    private List<Conflict> checkConflicts(AgentContext ctx, List<Assessment> assessments) {
         List<Conflict> conflicts = conflictDetector.detect(assessments);
         ctx.addTrace("CONFLICT_CHECK", null, Map.of(), conflicts.isEmpty() ? "OK" : "CONFLICT",
                 conflicts.isEmpty() ? "No conflicting figures" : conflicts.stream()
                         .map(c -> c.quantity() + ": " + c.facts().stream().map(f -> f.value() + " [" + f.ref() + "]")
                                 .collect(Collectors.joining(" vs "))).collect(Collectors.joining("; ")), 0);
+        return conflicts;
+    }
 
-        // SYNTHESIZE
-        SynthesisInput input = new SynthesisInput(request.question(), supported, conflicts);
-        Map<String, EvidenceItem> byRef = new LinkedHashMap<>();
-        ctx.evidence().forEach(e -> byRef.put(e.ref(), e));
-        String body;
-        boolean synthesisFailed = false;
+    /** SYNTHESIZE: the model writes the answer from the gated evidence; on failure, quote the evidence instead. */
+    private Draft synthesize(AgentContext ctx, SynthesisInput input) {
         long synthStart = System.nanoTime();
         try {
-            body = withTimeout(() -> models.synthesizer().compose(input), synthesisTimeout());
+            String body = withTimeout(() -> models.synthesizer().compose(input), synthesisTimeout());
             ctx.addTrace("SYNTHESIZE", null, Map.of("synthesizer", models.modelName()), "OK",
                     abbreviate(body), ms(synthStart));
+            return new Draft(body, models.synthesizer() != fallbackSynthesizer);
         } catch (RuntimeException e) {
             if (models.synthesizer() == fallbackSynthesizer) {
                 throw e;
             }
-            degraded = true;
-            synthesisFailed = true;
+            ctx.markDegraded();
             log.warn("Synthesis failed, falling back to extractive answer: {}", e.toString());
             ctx.warn("The AI model did not respond in time (" + e.getClass().getSimpleName()
                     + "); an extractive answer quoting the evidence is shown instead.");
             ctx.addTrace("SYNTHESIZE", null, Map.of("synthesizer", models.modelName()), "DEGRADED",
                     "fallback to extractive synthesizer", ms(synthStart));
-            body = fallbackSynthesizer.compose(input);
+            return new Draft(fallbackSynthesizer.compose(input), false);
         }
+    }
 
-        // VALIDATE
+    /**
+     * VALIDATE: drop uncited or unsupported sentences. A model answer that loses everything gets one
+     * repair attempt, then is replaced by the extractive answer.
+     */
+    private ValidationResult validate(AgentContext ctx, SynthesisInput input, Draft draft,
+                                      Map<String, EvidenceItem> byRef) {
+        String body = draft.body();
         // An empty body is legitimate when every supported part is a conflict (stated below by Java).
         ValidationResult validation = body == null || body.isBlank()
                 ? new ValidationResult("", List.of(), List.of())
                 : validator.validate(body, byRef);
         List<String> issues = new ArrayList<>(validation.issues());
-        boolean needsBody = supported.stream().anyMatch(a -> conflicts.stream()
+        boolean needsBody = input.supportedParts().stream().anyMatch(a -> input.conflicts().stream()
                 .noneMatch(c -> c.subQuestionIndex() == a.subQuestion().index()));
-        boolean modelWroteBody = models.synthesizer() != fallbackSynthesizer && !synthesisFailed;
-        if (validation.text().isBlank() && needsBody && modelWroteBody) {
+        if (validation.text().isBlank() && needsBody && draft.byModel()) {
             // REPAIR: one second chance for the model, told exactly what the validator rejected.
             ValidationResult repaired = tryRepair(ctx, input, body, validation.issues(), byRef);
             if (repaired != null && !repaired.text().isBlank()) {
@@ -199,7 +227,7 @@ public class ResearchAgent {
             }
         }
         if (validation.text().isBlank() && needsBody && models.synthesizer() != fallbackSynthesizer) {
-            degraded = true;
+            ctx.markDegraded();
             ctx.warn("The model's answer failed citation validation; an extractive answer from the evidence is shown instead.");
             ValidationResult retry = validator.validate(fallbackSynthesizer.compose(input), byRef);
             issues.addAll(retry.issues());
@@ -207,8 +235,12 @@ public class ResearchAgent {
         }
         ctx.addTrace("VALIDATE", null, Map.of(), issues.isEmpty() ? "OK" : "CORRECTED",
                 issues.isEmpty() ? "All sentences cited and supported" : String.join(" | ", issues), 0);
+        return new ValidationResult(validation.text(), validation.usedRefs(), issues);
+    }
 
-        // COMPOSE (deterministic notices are written by Java, not the model)
+    /** COMPOSE: add the deterministic notices (conflicts, unanswered parts) written by Java, then decide the outcome. */
+    private AskResponse compose(AskRequest request, CurrentUser user, AgentContext ctx, List<Assessment> assessments,
+                                List<Conflict> conflicts, ValidationResult validation, long start) {
         StringBuilder answer = new StringBuilder(validation.text());
         Set<String> citedRefs = new LinkedHashSet<>(validation.usedRefs());
         for (Conflict c : conflicts) {
@@ -234,8 +266,8 @@ public class ResearchAgent {
         } else {
             outcome = AnswerOutcome.ANSWERED;
         }
-        return finish(request, user, ctx, outcome, answer.toString(), assessments, conflicts, issues, citedRefs,
-                degraded, start);
+        return finish(request, user, ctx, outcome, answer.toString(), assessments, conflicts, validation.issues(),
+                citedRefs, ctx.degraded(), start);
     }
 
     private AskResponse finish(AskRequest request, CurrentUser user, AgentContext ctx, AnswerOutcome outcome,

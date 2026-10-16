@@ -16,6 +16,9 @@ import com.salman.ekg.dto.FeedbackDtos.FeedbackResponse;
 import com.salman.ekg.security.CurrentUser;
 import com.salman.ekg.service.FeedbackService;
 
+/**
+ * Stores a user's 1-5 rating of an answer, linked to the answer and (optionally) a cited document.
+ */
 @RestController
 @RequestMapping("/api/knowledge")
 public class FeedbackController {

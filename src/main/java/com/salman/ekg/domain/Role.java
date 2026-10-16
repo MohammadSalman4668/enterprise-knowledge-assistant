@@ -1,5 +1,8 @@
 package com.salman.ekg.domain;
 
+/**
+ * Application roles. Which access levels each role can read is data in the {@code access_policy} table.
+ */
 public enum Role {
     EMPLOYEE,
     HR,

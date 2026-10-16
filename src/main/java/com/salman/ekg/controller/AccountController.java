@@ -20,6 +20,10 @@ import com.salman.ekg.dto.AccountDtos.SignupResponse;
 import com.salman.ekg.security.CurrentUser;
 import com.salman.ekg.service.AccountService;
 
+/**
+ * Account sign-up and approval endpoints. Anyone may request an account; HR decides Employee requests
+ * and Admins decide HR and Admin requests (rules enforced in {@link com.salman.ekg.service.AccountService}).
+ */
 @RestController
 public class AccountController {
 

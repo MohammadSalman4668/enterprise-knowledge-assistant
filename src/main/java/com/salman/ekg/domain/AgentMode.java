@@ -1,5 +1,8 @@
 package com.salman.ekg.domain;
 
+/**
+ * Whether answers come from a live AI model or from the clearly labelled deterministic simulation.
+ */
 public enum AgentMode {
     /** Deterministic planner + extractive synthesizer. No model is called. Clearly labelled in the UI. */
     SIMULATED,

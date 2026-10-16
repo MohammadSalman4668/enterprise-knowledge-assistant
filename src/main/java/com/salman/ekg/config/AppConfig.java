@@ -7,6 +7,10 @@ import java.util.concurrent.Executors;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+/**
+ * Shared infrastructure beans: an injectable clock (so tests control time) and the executor that runs
+ * retriever and model calls under a time budget.
+ */
 @Configuration
 public class AppConfig {
 

@@ -8,6 +8,9 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import com.salman.ekg.domain.DocumentStatus;
 import com.salman.ekg.domain.KnowledgeDocument;
 
+/**
+ * Documents, with dynamic filtering (specifications) and duplicate-content checks.
+ */
 public interface KnowledgeDocumentRepository
         extends JpaRepository<KnowledgeDocument, Long>, JpaSpecificationExecutor<KnowledgeDocument> {
 

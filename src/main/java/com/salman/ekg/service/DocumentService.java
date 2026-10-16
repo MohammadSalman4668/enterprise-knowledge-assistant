@@ -42,6 +42,7 @@ import com.salman.ekg.repository.DocumentVersionRepository;
 import com.salman.ekg.repository.KnowledgeChunkRepository;
 import com.salman.ekg.repository.KnowledgeDocumentRepository;
 import com.salman.ekg.security.CurrentUser;
+import com.salman.ekg.text.TextAnalysis;
 
 /**
  * Document lifecycle: upload, approval gate, revisions, re-index and archive.
@@ -345,7 +346,7 @@ public class DocumentService {
     static String sha256(String text) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256")
-                    .digest(com.salman.ekg.text.TextAnalysis.normalizeWhitespace(text).getBytes(StandardCharsets.UTF_8));
+                    .digest(TextAnalysis.normalizeWhitespace(text).getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(digest);
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException(e);

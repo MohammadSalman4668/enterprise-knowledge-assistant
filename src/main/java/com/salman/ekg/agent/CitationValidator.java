@@ -1,6 +1,7 @@
 package com.salman.ekg.agent;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -45,7 +46,7 @@ public class CitationValidator {
             return new ValidationResult("", List.of(), List.of("EMPTY_ANSWER"));
         }
         // "[E2, E3]" / "[e2]" -> "[E2][E3]" / "[E2]"
-        String grouped = CITATION_GROUP.matcher(body).replaceAll(m -> java.util.Arrays.stream(m.group(1).split("\\s*[,;]\\s*"))
+        String grouped = CITATION_GROUP.matcher(body).replaceAll(m -> Arrays.stream(m.group(1).split("\\s*[,;]\\s*"))
                 .map(r -> "[" + r.strip().toUpperCase() + "]").reduce("", String::concat));
         // "...per night. [E1]" -> "...per night [E1]." so citations stay with their sentence
         String normalized = TRAILING_CITATIONS.matcher(grouped).replaceAll(m -> " " + m.group(2).strip() + m.group(1) + " ");

@@ -23,6 +23,10 @@ import com.salman.ekg.dto.AskDtos.AskResponse;
 import com.salman.ekg.retrieval.Retriever;
 import com.salman.ekg.security.CurrentUser;
 
+/**
+ * Question-answering endpoints: runs the research agent, returns stored answers to their owner (or an
+ * admin), and reports whether a live model or the labelled simulation is active.
+ */
 @RestController
 @RequestMapping("/api/knowledge")
 public class AskController {

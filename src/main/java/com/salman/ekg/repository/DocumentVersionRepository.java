@@ -10,6 +10,9 @@ import org.springframework.data.repository.query.Param;
 import com.salman.ekg.domain.DocumentVersion;
 import com.salman.ekg.domain.RevisionStatus;
 
+/**
+ * Document revisions: the current and pending text of each document and its version history.
+ */
 public interface DocumentVersionRepository extends JpaRepository<DocumentVersion, Long> {
 
     Optional<DocumentVersion> findByDocumentIdAndStatus(Long documentId, RevisionStatus status);

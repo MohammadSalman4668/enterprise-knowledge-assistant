@@ -8,6 +8,9 @@ import org.springframework.data.repository.query.Param;
 
 import com.salman.ekg.domain.AgentRun;
 
+/**
+ * Stores and loads research runs (answer, outcome and trace) for inspection and feedback.
+ */
 public interface AgentRunRepository extends JpaRepository<AgentRun, Long> {
 
     @Query("select distinct r from AgentRun r left join fetch r.citations where r.id = :id")

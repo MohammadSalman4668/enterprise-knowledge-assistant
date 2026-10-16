@@ -13,6 +13,9 @@ import com.salman.ekg.domain.AccountStatus;
 import com.salman.ekg.domain.AppUser;
 import com.salman.ekg.domain.Role;
 
+/**
+ * Request and response bodies of the account endpoints (sign-up, approvals, profile).
+ */
 public final class AccountDtos {
 
     private AccountDtos() {

@@ -11,6 +11,10 @@ import com.salman.ekg.domain.AccessLevel;
 import com.salman.ekg.domain.AgentMode;
 import com.salman.ekg.domain.AnswerOutcome;
 
+/**
+ * Request and response bodies of {@code POST /api/knowledge/ask}: the answer, its citations, the evidence
+ * read, the evidence check per sub-question, detected conflicts and the full agent trace.
+ */
 public final class AskDtos {
 
     private AskDtos() {

@@ -1,6 +1,7 @@
 package com.salman.ekg.domain;
 
 import java.time.Instant;
+import java.util.Locale;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -62,7 +63,7 @@ public class AppUser {
     }
 
     public static String normalizeEmail(String email) {
-        return email == null ? null : email.strip().toLowerCase(java.util.Locale.ROOT);
+        return email == null ? null : email.strip().toLowerCase(Locale.ROOT);
     }
 
     public Long getId() { return id; }

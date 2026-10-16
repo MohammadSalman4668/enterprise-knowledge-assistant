@@ -37,6 +37,11 @@ import com.salman.ekg.exception.ApiException;
 import com.salman.ekg.security.CurrentUser;
 import com.salman.ekg.service.DocumentService;
 
+/**
+ * Document management endpoints: upload, list, details, source preview and the lifecycle actions
+ * (approve, reject, revise, re-index, archive). Role checks are in {@code SecurityConfig}; visibility and
+ * state rules in {@link com.salman.ekg.service.DocumentService}.
+ */
 @RestController
 @RequestMapping("/api/knowledge")
 @Validated

@@ -9,6 +9,9 @@ import jakarta.validation.constraints.Size;
 
 import com.salman.ekg.domain.AccessLevel;
 
+/**
+ * Request and response bodies of {@code POST /api/knowledge/search}.
+ */
 public final class SearchDtos {
 
     private SearchDtos() {

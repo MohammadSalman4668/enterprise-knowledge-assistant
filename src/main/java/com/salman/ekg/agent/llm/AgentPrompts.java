@@ -1,6 +1,7 @@
 package com.salman.ekg.agent.llm;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import com.salman.ekg.agent.AgentTypes.Assessment;
@@ -46,7 +47,7 @@ final class AgentPrompts {
             """;
 
     /** Sent once, after the validator rejected the model's answer, listing what was wrong. */
-    static String repairRequest(java.util.List<String> problems) {
+    static String repairRequest(List<String> problems) {
         StringBuilder sb = new StringBuilder("""
                 Your answer was rejected by the citation checker for these reasons:
                 """);

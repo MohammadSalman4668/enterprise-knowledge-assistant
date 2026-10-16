@@ -13,6 +13,9 @@ import com.salman.ekg.dto.SearchDtos.SearchResponse;
 import com.salman.ekg.security.CurrentUser;
 import com.salman.ekg.service.SearchService;
 
+/**
+ * Hybrid knowledge search over the documents the caller may read.
+ */
 @RestController
 @RequestMapping("/api/knowledge")
 public class SearchController {

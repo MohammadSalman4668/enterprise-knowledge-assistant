@@ -9,6 +9,9 @@ import jakarta.validation.constraints.Size;
 
 import com.salman.ekg.domain.KnowledgeFeedback;
 
+/**
+ * Request and response bodies of {@code POST /api/knowledge/feedback}.
+ */
 public final class FeedbackDtos {
 
     private FeedbackDtos() {

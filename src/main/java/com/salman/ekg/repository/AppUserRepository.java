@@ -14,6 +14,9 @@ import com.salman.ekg.domain.AccountStatus;
 import com.salman.ekg.domain.AppUser;
 import com.salman.ekg.domain.Role;
 
+/**
+ * Accounts by email, plus a conditional update so a sign-up request can only be decided once.
+ */
 public interface AppUserRepository extends JpaRepository<AppUser, Long> {
 
     Optional<AppUser> findByEmail(String email);

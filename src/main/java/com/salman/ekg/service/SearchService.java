@@ -19,6 +19,10 @@ import com.salman.ekg.retrieval.RetrievedChunk;
 import com.salman.ekg.security.CurrentUser;
 import com.salman.ekg.text.TextAnalysis;
 
+/**
+ * Runs a search for the Search screen and logs every search (also the agent's) for the analytics
+ * reports. Snippets show the sentence that best matches the query, so users see why a result matched.
+ */
 @Service
 public class SearchService {
 

@@ -9,6 +9,10 @@ import org.springframework.stereotype.Component;
 
 import com.salman.ekg.config.KnowledgeProperties;
 
+/**
+ * Wires the Ollama embedding client and the periodic background job that embeds any chunk still
+ * missing a vector (for example, chunks uploaded while Ollama was not running).
+ */
 @Configuration
 @EnableScheduling
 public class EmbeddingConfig {

@@ -1,5 +1,8 @@
 package com.salman.ekg.domain;
 
+/**
+ * Result of one research run, stored with the answer and shown as a badge in the UI.
+ */
 public enum AnswerOutcome {
     /** Every part of the question is supported by cited evidence. */
     ANSWERED,

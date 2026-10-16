@@ -29,6 +29,7 @@ public final class AgentContext {
     private final List<String> warnings = new ArrayList<>();
     private String retrievalMode = "NONE";
     private boolean retrievalFallback;
+    private boolean degraded;
 
     public AgentContext(CurrentUser user, String category, int maxToolCalls) {
         this.user = user;
@@ -43,6 +44,13 @@ public final class AgentContext {
     public boolean budgetExhausted() { return toolCallsUsed >= maxToolCalls; }
     public String retrievalMode() { return retrievalMode; }
     public boolean retrievalFallback() { return retrievalFallback; }
+
+    /** True once any step had to fall back because the AI model failed or produced an unusable answer. */
+    public boolean degraded() { return degraded; }
+
+    void markDegraded() {
+        degraded = true;
+    }
 
     void consumeToolCall() {
         toolCallsUsed++;

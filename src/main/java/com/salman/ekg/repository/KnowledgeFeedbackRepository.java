@@ -6,6 +6,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import com.salman.ekg.domain.KnowledgeFeedback;
 
+/**
+ * Answer ratings; one per user per answer.
+ */
 public interface KnowledgeFeedbackRepository extends JpaRepository<KnowledgeFeedback, Long> {
 
     boolean existsByAgentRunIdAndUsername(Long agentRunId, String username);

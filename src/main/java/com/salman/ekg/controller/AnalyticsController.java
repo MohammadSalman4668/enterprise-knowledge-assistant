@@ -1,5 +1,6 @@
 package com.salman.ekg.controller;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -29,7 +30,7 @@ public class AnalyticsController {
 
     @GetMapping("/summary")
     public Map<String, Object> summary() {
-        Map<String, Object> summary = new java.util.LinkedHashMap<>(analytics.summary());
+        Map<String, Object> summary = new LinkedHashMap<>(analytics.summary());
         summary.put("outcomes", analytics.outcomes());
         return summary;
     }

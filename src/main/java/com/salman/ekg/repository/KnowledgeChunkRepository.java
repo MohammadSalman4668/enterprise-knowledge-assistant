@@ -13,6 +13,10 @@ import com.salman.ekg.domain.AccessLevel;
 import com.salman.ekg.domain.DocumentStatus;
 import com.salman.ekg.domain.KnowledgeChunk;
 
+/**
+ * Retrievable passages. Besides lookups, it supersedes old chunks on re-index and re-validates retriever
+ * results against the database (current version, searchable status, readable access level).
+ */
 public interface KnowledgeChunkRepository extends JpaRepository<KnowledgeChunk, Long> {
 
     List<KnowledgeChunk> findByDocumentIdAndVersionOrderByChunkIndex(Long documentId, int version);

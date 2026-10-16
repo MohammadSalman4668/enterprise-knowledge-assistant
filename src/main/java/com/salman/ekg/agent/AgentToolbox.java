@@ -2,6 +2,7 @@ package com.salman.ekg.agent;
 
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import org.springframework.stereotype.Component;
@@ -100,7 +101,7 @@ public class AgentToolbox {
             sb.append("chunk_id=").append(h.chunkId())
                     .append(" | title=").append(h.title())
                     .append(" | location=").append(h.locationLabel())
-                    .append(" | score=").append(String.format(java.util.Locale.ROOT, "%.3f", h.score()))
+                    .append(" | score=").append(String.format(Locale.ROOT, "%.3f", h.score()))
                     .append(" | snippet=").append(snippet).append('\n');
         }
         return ToolResult.ok(sb.toString().strip());
